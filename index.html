@@ -116,4 +116,242 @@
             <label>Notes</label>
             <input type="text" id="modal-notes" placeholder="e.g. Goodwill, scratched...">
             
-            <input type
+            <input type="hidden" id="modal-id">
+            
+            <footer>
+                <button class="secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-save" onclick="confirmSave(event)">Confirm Save</button>
+            </footer>
+        </form>
+    </dialog>
+
+    <script>
+        // GLOBALS
+        let CONFIG = {
+            gemini: localStorage.getItem('v_gemini'),
+            discogs: localStorage.getItem('v_discogs'),
+            sheet: localStorage.getItem('v_sheet')
+        };
+        let photoStack = [];
+        
+        // GOLDMINE DESCRIPTIONS
+        const CONDITION_GUIDE = {
+            "Mint": "Perfect in every way. Never played. Possibly still sealed.",
+            "NM": "Nearly perfect. No obvious signs of wear. Playback is flawless.",
+            "VG+": "Cosmetic defects only. Slight scuffs/warps okay. Plays perfectly.",
+            "VG": "Surface noise evident but won't overpower music. Light scratches/writing possible.",
+            "G+": "Significant noise/crackling but plays through without skipping. Visible wear.",
+            "P": "Cracked, badly warped, or skips. Sleeve heavily damaged. Worth very little."
+        };
+
+        // 1. INIT
+        function checkKeys() {
+            if (CONFIG.gemini && CONFIG.discogs) {
+                document.getElementById('settings-box').style.display = 'none';
+                document.getElementById('app-interface').style.display = 'block';
+                startCamera();
+            }
+        }
+        function saveKeys() {
+            const g = document.getElementById('input-gemini').value.trim();
+            const d = document.getElementById('input-discogs').value.trim();
+            const s = document.getElementById('input-sheet').value.trim();
+            if(!g || !d) return alert("Gemini and Discogs keys are required.");
+            localStorage.setItem('v_gemini', g); localStorage.setItem('v_discogs', d); localStorage.setItem('v_sheet', s);
+            location.reload(); 
+        }
+        function clearKeys() { if(confirm("Reset V-Dog settings?")) { localStorage.clear(); location.reload(); } }
+
+        // 2. CAMERA
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                document.getElementById('camera-feed').srcObject = stream;
+            } catch (e) { log("Camera unavailable. Upload mode active."); }
+        }
+        function takePhoto() {
+            const video = document.getElementById('camera-feed');
+            if (!video.srcObject) return alert("Use Upload button.");
+            const canvas = document.createElement('canvas');
+            const scale = 800 / video.videoWidth;
+            canvas.width = 800; canvas.height = video.videoHeight * scale;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            addPhoto(canvas.toDataURL('image/jpeg', 0.7));
+        }
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const scale = 800 / img.width;
+                        canvas.width = 800; canvas.height = img.height * scale;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        addPhoto(canvas.toDataURL('image/jpeg', 0.7));
+                    }
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        function addPhoto(data) {
+            photoStack.push({ id: Date.now() + Math.random(), data: data, status: 'pending', result: null });
+            renderGallery();
+        }
+
+        // 3. PROCESSOR
+        async function processBatch() {
+            const btn = document.getElementById('process-btn');
+            btn.setAttribute('aria-busy', 'true'); btn.innerText = "Hunting...";
+            
+            for(let i=0; i<photoStack.length; i++) {
+                let item = photoStack[i];
+                if(item.status === 'done') continue;
+                log(`Sniffing item ${i+1}...`);
+                try {
+                    const base64 = item.data.split(',')[1];
+                    const gRes = await callGemini(base64);
+                    log(`Woof! Found: ${gRes.artist}`);
+                    item.result = gRes; renderGallery();
+
+                    const dRes = await callDiscogs(gRes);
+                    item.result = { ...gRes, ...dRes };
+                    item.status = 'done';
+                } catch (e) {
+                    log("Growl: " + e.message); item.status = 'error';
+                }
+                renderGallery();
+            }
+            btn.setAttribute('aria-busy', 'false'); btn.innerText = "Hunt More";
+        }
+        async function callGemini(base64) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
+            const payload = { contents: [{ parts: [{ text: "Return strictly JSON: { \"artist\": \"Name\", \"album\": \"Title\", \"year\": \"19XX\", \"cat_num\": \"Number\" }" }, { inline_data: { mime_type: "image/jpeg", data: base64 } }]}]};
+            const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+            const data = await res.json();
+            return JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
+        }
+        async function callDiscogs(data) {
+            let q = `${data.artist} ${data.album} ${data.cat_num || ''}`;
+            const manualUrl = `https://www.discogs.com/search/?q=${encodeURIComponent(q)}&type=release`;
+            try {
+                const controller = new AbortController(); setTimeout(() => controller.abort(), 2500);
+                const res = await fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(q)}&token=${CONFIG.discogs}`, { signal: controller.signal });
+                const json = await res.json();
+                if(json.results?.[0]) return { url: `https://www.discogs.com${json.results[0].uri}`, success: true };
+            } catch(e) {}
+            return { url: manualUrl, success: false };
+        }
+
+        // 4. SAVE LOGIC (UPDATED WITH DYNAMIC HELP)
+        function openSaveModal(id) {
+            if(!CONFIG.sheet) return alert("No Database Connected!");
+            document.getElementById('modal-condition').value = "";
+            document.getElementById('condition-help').style.display = "none"; // Hide help initially
+            document.getElementById('modal-price').value = "";
+            document.getElementById('modal-notes').value = "";
+            document.getElementById('modal-id').value = id;
+            document.getElementById('save-modal').showModal();
+        }
+
+        function showConditionHelp() {
+            const val = document.getElementById('modal-condition').value;
+            const helpBox = document.getElementById('condition-help');
+            if(val && CONDITION_GUIDE[val]) {
+                helpBox.innerText = CONDITION_GUIDE[val];
+                helpBox.style.display = "block";
+            } else {
+                helpBox.style.display = "none";
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('save-modal').close();
+        }
+
+        async function confirmSave(event) {
+            event.preventDefault(); 
+            const modal = document.getElementById('save-modal');
+            const id = document.getElementById('modal-id').value;
+            const condition = document.getElementById('modal-condition').value;
+            const price = document.getElementById('modal-price').value;
+            const notes = document.getElementById('modal-notes').value;
+            modal.close();
+            await saveToDB(id, condition, price, notes);
+        }
+
+        async function saveToDB(id, condition, price, notes) {
+            const item = photoStack.find(p => String(p.id) === String(id));
+            if (!item) return log("Error: Item lost.");
+
+            const btn = document.getElementById(`btn-${id}`);
+            btn.innerText = "Saving..."; btn.disabled = true;
+
+            try {
+                const payload = {
+                    artist: item.result.artist,
+                    album: item.result.album,
+                    year: item.result.year,
+                    cat_num: item.result.cat_num,
+                    url: item.result.url,
+                    image: "Image Not Saved",
+                    condition: condition,
+                    price: price,
+                    notes: notes
+                };
+
+                await fetch(CONFIG.sheet, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(payload)
+                });
+
+                btn.innerText = "Saved!";
+                btn.style.background = "#555";
+                log("Saved to Database!");
+            } catch(e) {
+                btn.innerText = "Error"; btn.disabled = false;
+                alert("Save failed.");
+            }
+        }
+
+        // 5. RENDER
+        function renderGallery() {
+            const el = document.getElementById('gallery');
+            el.innerHTML = '';
+            document.getElementById('count').innerText = photoStack.length;
+
+            photoStack.slice().reverse().forEach(item => {
+                let html = `<div class="gallery-item">
+                    <img src="${item.data}">
+                    <div class="info">`;
+                
+                if(item.result) {
+                    html += `<strong>${item.result.artist || 'Unknown'}</strong>
+                             <em>${item.result.album || 'Unknown'}</em>
+                             <div style="color:#666; font-size:0.9em; margin-bottom:10px;">
+                                ${item.result.year || '?'} • ${item.result.cat_num || 'No Cat#'}
+                             </div>`;
+                    html += `<div class="btn-group">`;
+                    if(item.result.url) {
+                         html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">
+                                    ${item.result.success ? '💿 View Price' : '🔍 Search'}
+                                 </a>`;
+                    }
+                    html += `<button id="btn-${item.id}" onclick="openSaveModal(${item.id})" class="action-btn btn-save">
+                                💾 Save to DB
+                             </button>`;
+                    html += `</div>`;
+                } else { html += `<span style="color:#666">...Waiting...</span>`; }
+                html += `</div></div>`;
+                el.innerHTML += html;
+            });
+        }
+        function log(m) { const l = document.getElementById('logs'); l.innerText += '\n> ' + m; l.scrollTop = l.scrollHeight; }
+
+        checkKeys();
+    </script>
+</body>
+</html>
