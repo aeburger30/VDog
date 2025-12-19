@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>V-Dog v9.7</title>
+    <title>V-Dog v9.8</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <meta name="theme-color" content="#fbc02d">
@@ -99,7 +99,7 @@
     <div id="splash-screen">
         <img src="vdog.jpg" id="splash-img" alt="V-Dog">
         <h2 style="color:#fbc02d; margin-bottom:5px;">V-Dog</h2>
-        <p style="color:#666; margin-bottom:25px; font-size:0.9em;">Vinyl Hunter v9.7</p>
+        <p style="color:#666; margin-bottom:25px; font-size:0.9em;">Vinyl Hunter v9.8</p>
         <button class="enter-btn" onclick="enterApp()">Enter</button>
         <div class="reset-link" onclick="clearKeys()">Reset App Settings</div>
     </div>
@@ -225,28 +225,29 @@
                 log(`Sniffing item ${i+1}...`);
                 try {
                     const base64 = item.data.split(',')[1];
-                    // 1. Gemini Identification (Strict Mode)
                     const gRes = await callGeminiIdentify(base64);
                     log(`AI Found: ${gRes.artist} / ${gRes.cat_num}`);
-                    
                     checkDupAndRare(gRes); 
                     item.result = gRes; renderGallery(); 
                     
-                    // 2. Discogs Search (Smart Fallback)
                     const dRes = await callDiscogs(gRes);
                     
-                    // If Gemini gave "Unknown" but Discogs found real info, fill it in!
-                    if (dRes.success && (item.result.album === "Unknown" || item.result.album === "")) {
-                        item.result.album = dRes.foundTitle || item.result.album;
-                        log(`Discogs ID'd: ${item.result.album}`);
+                    // --- THE FIX: FILL IN BOTH ALBUM AND ARTIST ---
+                    if (dRes.success) {
+                        if (item.result.album === "Unknown" || item.result.album === "") {
+                            item.result.album = dRes.foundAlbum || item.result.album;
+                        }
+                        if (item.result.artist === "Unknown" || item.result.artist === "") {
+                            item.result.artist = dRes.foundArtist || item.result.artist;
+                        }
                     }
                     
                     item.result = { ...item.result, ...dRes };
                     
-                    // 3. Mismatch Check
-                    if(item.result.success && item.result.foundTitle && item.result.album !== "Unknown") {
+                    // Mismatch Check
+                    if(item.result.success && item.result.foundAlbum) {
                          const searchAlbum = item.result.album.toLowerCase().replace(/[^a-z0-9]/g, "");
-                         const foundTitle = item.result.foundTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
+                         const foundTitle = item.result.foundAlbum.toLowerCase().replace(/[^a-z0-9]/g, "");
                          if(!foundTitle.includes(searchAlbum) && !searchAlbum.includes(foundTitle)) { item.result.isMismatch = true; }
                     }
                     item.status = 'done';
@@ -258,7 +259,6 @@
 
         async function callGeminiIdentify(base64) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
-            // NEW STRICT PROMPT
             const promptText = `
                 Analyze this vinyl record image. Return JSON: { 
                     "artist": "Name or Unknown", 
@@ -269,7 +269,7 @@
                     "rare_label": "String" 
                 }
                 CRITICAL RULES:
-                1. If you see a number (Catalog #) but NO album art/title (e.g. a close-up of a label), return 'Unknown' for 'album'. DO NOT GUESS THE ALBUM.
+                1. If you see a number (Catalog #) but NO album art/title (e.g. a close-up of a label), return 'Unknown' for 'album' and 'artist'. DO NOT GUESS.
                 2. Extract text precisely.
                 3. Set 'is_rare' true ONLY for high value items.
             `;
@@ -281,15 +281,10 @@
 
         async function callDiscogs(data) {
             let q = "";
-            
-            // SMART QUERY LOGIC
             if (data.album === "Unknown" || !data.album) {
-                // If AI didn't see the album, search by Catalog Number ONLY (Detectve Mode)
                 q = `${data.cat_num}`;
-                // If artist is known, add it
                 if (data.artist && data.artist !== "Unknown") q = `${data.artist} ${data.cat_num}`;
             } else {
-                // Standard Search
                 q = `${data.artist} ${data.album}`;
             }
 
@@ -298,8 +293,25 @@
                 const controller = new AbortController(); setTimeout(() => controller.abort(), 2500);
                 const res = await fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(q)}&token=${CONFIG.discogs}`, { signal: controller.signal });
                 const json = await res.json();
+                
                 if(json.results?.[0]) {
-                    return { url: `https://www.discogs.com${json.results[0].uri}`, success: true, foundTitle: json.results[0].title };
+                    const fullTitle = json.results[0].title; // usually "Artist - Album"
+                    let foundArtist = "";
+                    let foundAlbum = fullTitle;
+                    
+                    // Try to split "Artist - Album"
+                    if (fullTitle.includes(" - ")) {
+                        const parts = fullTitle.split(" - ");
+                        foundArtist = parts[0];
+                        foundAlbum = parts.slice(1).join(" - ");
+                    }
+                    
+                    return { 
+                        url: `https://www.discogs.com${json.results[0].uri}`, 
+                        success: true, 
+                        foundAlbum: foundAlbum,
+                        foundArtist: foundArtist
+                    };
                 }
             } catch(e) {}
             return { url: manualUrl, success: false };
@@ -423,7 +435,6 @@
             if(isCamOn) { const stream = video.srcObject; if(stream) { const tracks = stream.getTracks(); tracks.forEach(track => track.stop()); video.srcObject = null; } isCamOn = false; btn.innerText = "👁️ Off"; btn.classList.add("secondary"); } 
             else { await startCamera(); isCamOn = true; btn.innerText = "👁️ On"; btn.classList.remove("secondary"); }
         }
-        // INCREASED RESOLUTION TO 1200px
         function takePhoto() { const v = document.getElementById('camera-feed'); if (!v.srcObject) return alert("Cam OFF."); const c = document.createElement('canvas'); const s = 1200 / v.videoWidth; c.width = 1200; c.height = v.videoHeight * s; c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.8)); }
         function handleFiles(f) { Array.from(f).forEach(file => { const r = new FileReader(); r.onload = (e) => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); const s = 1200 / i.width; c.width = 1200; c.height = i.height * s; c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.8)); }; i.src = e.target.result; }; r.readAsDataURL(file); }); }
         
