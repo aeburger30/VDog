@@ -6,7 +6,7 @@
     <title>V-Dog the Vinyl Hunter</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        /* BRANDING */
+        /* BRANDING & CORE */
         body { max-width: 800px; margin: 0 auto; padding: 15px; background: #0a0a0a; color: #e0e0e0; }
         
         /* SETUP BOX */
@@ -22,36 +22,42 @@
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* RESULTS */
+        /* GALLERY & CARDS */
         .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
-        .gallery-item { background: #1a1a1a; padding: 12px; border-radius: 8px; border: 1px solid #333; display: flex; flex-direction: column; }
-        .gallery-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; margin-bottom: 10px; border: 1px solid #444;}
+        .gallery-item { background: #1a1a1a; padding: 0; border-radius: 8px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; position: relative;}
         
-        .info { font-size: 0.85em; flex-grow: 1; }
+        /* Image Area */
+        .img-wrap { width: 100%; aspect-ratio: 1; overflow: hidden; border-bottom: 1px solid #333; }
+        .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Content Area */
+        .card-content { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; }
+        .info { font-size: 0.85em; margin-bottom: 10px; }
         .info strong { color: #4dabf5; display: block; font-size: 1.1em; margin-bottom: 2px; }
-        .info em { color: #ccc; font-style: normal; display: block; margin-bottom: 5px; }
+        .info em { color: #ccc; font-style: normal; display: block; }
+
+        /* DUPLICATE WARNING BANNER */
+        .dup-banner {
+            background: #d32f2f; color: white; font-weight: bold; font-size: 0.75em;
+            text-align: center; padding: 5px; text-transform: uppercase;
+            display: none; 
+        }
+        .gallery-item.is-dup { border: 2px solid #d32f2f; }
+        .gallery-item.is-dup .dup-banner { display: block; }
         
         /* BUTTONS */
-        .btn-group { margin-top: 10px; display: grid; gap: 5px; }
+        .btn-group { margin-top: auto; display: grid; gap: 8px; }
         .action-btn { 
-            display: block; width: 100%; text-align: center; padding: 10px 0; 
-            border-radius: 4px; font-weight: bold; font-size: 0.85em; text-decoration: none; cursor: pointer; border: none;
+            display: block; width: 100%; text-align: center; padding: 8px 0; 
+            border-radius: 4px; font-weight: bold; font-size: 0.8em; text-decoration: none; cursor: pointer; border: none;
         }
         .btn-discogs { background: #fbc02d; color: #000; }
         .btn-save { background: #2e7d32; color: #fff; }
         .btn-save:disabled { background: #555; cursor: default; opacity: 0.7; }
 
-        /* MODAL STYLING */
+        /* MODAL */
         dialog { background: #1a1a1a; border: 1px solid #444; border-radius: 8px; color: white; width: 90%; max-width: 400px;}
-        dialog header { font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;}
-        dialog footer { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        
-        /* CONDITION HELPER TEXT */
-        #condition-help {
-            font-size: 0.75em; color: #fbc02d; background: #332b00; 
-            padding: 8px; border-radius: 4px; margin-bottom: 15px; 
-            display: none; border-left: 3px solid #fbc02d;
-        }
+        #condition-help { font-size: 0.75em; color: #fbc02d; background: #332b00; padding: 8px; border-radius: 4px; margin-bottom: 15px; display: none; border-left: 3px solid #fbc02d;}
     </style>
 </head>
 <body>
@@ -63,12 +69,9 @@
 
     <div id="settings-box">
         <h4>⚙️ V-Dog Setup</h4>
-        <label>Gemini API Key</label>
-        <input type="password" id="input-gemini" placeholder="AIzaSy...">
-        <label>Discogs Token</label>
-        <input type="password" id="input-discogs" placeholder="abc123...">
-        <label>Google Sheet Script URL</label>
-        <input type="url" id="input-sheet" placeholder="https://script.google.com/macros/s/...">
+        <label>Gemini API Key</label> <input type="password" id="input-gemini">
+        <label>Discogs Token</label> <input type="password" id="input-discogs">
+        <label>Google Sheet Script URL</label> <input type="url" id="input-sheet" placeholder="https://script.google.com/macros/s/...">
         <button onclick="saveKeys()" style="margin-top:10px; background-color:#fbc02d; color:black; border:none;">🚀 Launch V-Dog</button>
     </div>
 
@@ -86,38 +89,34 @@
 
         <details open>
             <summary>Crate Digging (<span id="count">0</span>)</summary>
+            <small id="db-status" onclick="fetchCollection()" style="color:#666; font-size:0.7em; margin-left:10px; cursor:pointer;">
+                ⏳ Waiting for DB...
+            </small>
             <div id="gallery" class="gallery"></div>
         </details>
         
         <div style="margin-top:20px; padding-top:10px;">
-            <pre id="logs" style="height: 60px; overflow-y: scroll; font-size: 0.7em; background: #000; padding: 5px; color:#4caf50; border:1px solid #333;">V-Dog is ready to hunt...</pre>
+            <pre id="logs" style="height: 60px; overflow-y: scroll; font-size: 0.7em; background: #000; padding: 5px; color:#4caf50; border:1px solid #333;">V-Dog is ready...</pre>
         </div>
     </div>
 
     <dialog id="save-modal">
         <header>💾 Add to Collection</header>
-        <form method="dialog" id="save-form">
-            <label>Condition (Goldmine Std)</label>
+        <form method="dialog">
+            <label>Condition</label>
             <select id="modal-condition" onchange="showConditionHelp()">
-                <option value="" selected>Select Condition...</option>
+                <option value="" selected>Select...</option>
                 <option value="Mint">Mint (M)</option>
                 <option value="NM">Near Mint (NM)</option>
                 <option value="VG+">Very Good Plus (VG+)</option>
                 <option value="VG">Very Good (VG)</option>
                 <option value="G+">Good Plus (G+)</option>
-                <option value="P">Poor / Fair (P)</option>
+                <option value="P">Poor (P)</option>
             </select>
-            
             <div id="condition-help"></div>
-            
-            <label>Price Paid</label>
-            <input type="number" id="modal-price" placeholder="0.00" step="0.01">
-            
-            <label>Notes</label>
-            <input type="text" id="modal-notes" placeholder="e.g. Goodwill, scratched...">
-            
+            <label>Price Paid</label> <input type="number" id="modal-price" placeholder="0.00" step="0.01">
+            <label>Notes</label> <input type="text" id="modal-notes">
             <input type="hidden" id="modal-id">
-            
             <footer>
                 <button class="secondary" onclick="closeModal()">Cancel</button>
                 <button class="btn-save" onclick="confirmSave(event)">Confirm Save</button>
@@ -127,47 +126,113 @@
 
     <script>
         // GLOBALS
-        let CONFIG = {
-            gemini: localStorage.getItem('v_gemini'),
-            discogs: localStorage.getItem('v_discogs'),
-            sheet: localStorage.getItem('v_sheet')
-        };
+        let CONFIG = { gemini: localStorage.getItem('v_gemini'), discogs: localStorage.getItem('v_discogs'), sheet: localStorage.getItem('v_sheet') };
         let photoStack = [];
-        
-        // GOLDMINE DESCRIPTIONS
+        let collectionCache = []; 
+
         const CONDITION_GUIDE = {
-            "Mint": "Perfect in every way. Never played. Possibly still sealed.",
-            "NM": "Nearly perfect. No obvious signs of wear. Playback is flawless.",
-            "VG+": "Cosmetic defects only. Slight scuffs/warps okay. Plays perfectly.",
-            "VG": "Surface noise evident but won't overpower music. Light scratches/writing possible.",
-            "G+": "Significant noise/crackling but plays through without skipping. Visible wear.",
-            "P": "Cracked, badly warped, or skips. Sleeve heavily damaged. Worth very little."
+            "Mint": "Perfect. Never played.", "NM": "Nearly perfect. No signs of wear.",
+            "VG+": "Cosmetic defects only. Plays perfectly.", "VG": "Surface noise evident but light.",
+            "G+": "Significant noise/wear but plays through.", "P": "Cracked/Skips. Bad."
         };
 
-        // 1. INIT
+        // 1. INIT & DATABASE SYNC
         function checkKeys() {
-            if (CONFIG.gemini && CONFIG.discogs) {
+            // FIXED: Now checks if 'sheet' key is present too
+            if (CONFIG.gemini && CONFIG.discogs && CONFIG.sheet) {
                 document.getElementById('settings-box').style.display = 'none';
                 document.getElementById('app-interface').style.display = 'block';
                 startCamera();
+                fetchCollection(); 
             }
         }
+        
+        async function fetchCollection() {
+            if(!CONFIG.sheet) return;
+            const statusEl = document.getElementById('db-status');
+            statusEl.innerText = "🔄 Syncing DB...";
+            
+            try {
+                // Fetch the sheet data (GET request)
+                const res = await fetch(CONFIG.sheet);
+                if(!res.ok) throw new Error("Network response was not ok");
+                
+                const data = await res.json();
+                collectionCache = data;
+                statusEl.innerText = `✅ Database Synced (${data.length} records)`;
+                statusEl.style.color = "#4caf50";
+            } catch(e) {
+                statusEl.innerText = "⚠️ DB Sync Failed (Tap to Retry)";
+                statusEl.style.color = "red";
+                log("DB Error: " + e.message);
+            }
+        }
+
+        // 2. LOGIC: DUPLICATE CHECKER
+        function checkDuplicate(artist, album) {
+            if (!collectionCache.length) return null;
+            const normalize = (str) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+            const searchArtist = normalize(artist);
+            const searchAlbum = normalize(album);
+
+            return collectionCache.find(row => {
+                const dbArtist = normalize(row.artist);
+                const dbAlbum = normalize(row.album);
+                return dbAlbum.includes(searchAlbum) && dbArtist.includes(searchArtist);
+            });
+        }
+
+        // 3. CORE PROCESSING
+        async function processBatch() {
+            const btn = document.getElementById('process-btn');
+            btn.setAttribute('aria-busy', 'true'); btn.innerText = "Hunting...";
+            
+            for(let i=0; i<photoStack.length; i++) {
+                let item = photoStack[i];
+                if(item.status === 'done') continue;
+                
+                log(`Sniffing item ${i+1}...`);
+                try {
+                    const base64 = item.data.split(',')[1];
+                    const gRes = await callGemini(base64);
+                    log(`Found: ${gRes.artist}`);
+                    
+                    const dup = checkDuplicate(gRes.artist, gRes.album);
+                    if (dup) {
+                        gRes.isDuplicate = true;
+                        gRes.dupCondition = dup.cond || "Unknown";
+                        log(`⚠️ Duplicate Found! (You own this)`);
+                    }
+
+                    item.result = gRes; 
+                    renderGallery(); 
+
+                    const dRes = await callDiscogs(gRes);
+                    item.result = { ...gRes, ...dRes };
+                    item.status = 'done';
+                } catch (e) {
+                    log("Error: " + e.message); item.status = 'error';
+                }
+                renderGallery();
+            }
+            btn.setAttribute('aria-busy', 'false'); btn.innerText = "Hunt More";
+        }
+
+        // --- UTILS ---
         function saveKeys() {
             const g = document.getElementById('input-gemini').value.trim();
             const d = document.getElementById('input-discogs').value.trim();
             const s = document.getElementById('input-sheet').value.trim();
-            if(!g || !d) return alert("Gemini and Discogs keys are required.");
+            if(!g || !d || !s) return alert("All 3 keys are required for V-Dog to work.");
             localStorage.setItem('v_gemini', g); localStorage.setItem('v_discogs', d); localStorage.setItem('v_sheet', s);
             location.reload(); 
         }
-        function clearKeys() { if(confirm("Reset V-Dog settings?")) { localStorage.clear(); location.reload(); } }
-
-        // 2. CAMERA
+        function clearKeys() { if(confirm("Reset?")) { localStorage.clear(); location.reload(); } }
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 document.getElementById('camera-feed').srcObject = stream;
-            } catch (e) { log("Camera unavailable. Upload mode active."); }
+            } catch (e) { log("Camera unavailable. Use Upload."); }
         }
         function takePhoto() {
             const video = document.getElementById('camera-feed');
@@ -182,49 +247,19 @@
             Array.from(files).forEach(file => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
+                    const img = new Image(); img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const scale = 800 / img.width;
                         canvas.width = 800; canvas.height = img.height * scale;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                         addPhoto(canvas.toDataURL('image/jpeg', 0.7));
-                    }
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
+                    }; img.src = e.target.result;
+                }; reader.readAsDataURL(file);
             });
         }
         function addPhoto(data) {
             photoStack.push({ id: Date.now() + Math.random(), data: data, status: 'pending', result: null });
             renderGallery();
-        }
-
-        // 3. PROCESSOR
-        async function processBatch() {
-            const btn = document.getElementById('process-btn');
-            btn.setAttribute('aria-busy', 'true'); btn.innerText = "Hunting...";
-            
-            for(let i=0; i<photoStack.length; i++) {
-                let item = photoStack[i];
-                if(item.status === 'done') continue;
-                log(`Sniffing item ${i+1}...`);
-                try {
-                    const base64 = item.data.split(',')[1];
-                    const gRes = await callGemini(base64);
-                    log(`Woof! Found: ${gRes.artist}`);
-                    item.result = gRes; renderGallery();
-
-                    const dRes = await callDiscogs(gRes);
-                    item.result = { ...gRes, ...dRes };
-                    item.status = 'done';
-                } catch (e) {
-                    log("Growl: " + e.message); item.status = 'error';
-                }
-                renderGallery();
-            }
-            btn.setAttribute('aria-busy', 'false'); btn.innerText = "Hunt More";
         }
         async function callGemini(base64) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
@@ -245,104 +280,26 @@
             return { url: manualUrl, success: false };
         }
 
-        // 4. SAVE LOGIC (UPDATED WITH DYNAMIC HELP)
-        function openSaveModal(id) {
-            if(!CONFIG.sheet) return alert("No Database Connected!");
-            document.getElementById('modal-condition').value = "";
-            document.getElementById('condition-help').style.display = "none"; // Hide help initially
-            document.getElementById('modal-price').value = "";
-            document.getElementById('modal-notes').value = "";
-            document.getElementById('modal-id').value = id;
-            document.getElementById('save-modal').showModal();
-        }
-
-        function showConditionHelp() {
-            const val = document.getElementById('modal-condition').value;
-            const helpBox = document.getElementById('condition-help');
-            if(val && CONDITION_GUIDE[val]) {
-                helpBox.innerText = CONDITION_GUIDE[val];
-                helpBox.style.display = "block";
-            } else {
-                helpBox.style.display = "none";
-            }
-        }
-
-        function closeModal() {
-            document.getElementById('save-modal').close();
-        }
-
-        async function confirmSave(event) {
-            event.preventDefault(); 
-            const modal = document.getElementById('save-modal');
-            const id = document.getElementById('modal-id').value;
-            const condition = document.getElementById('modal-condition').value;
-            const price = document.getElementById('modal-price').value;
-            const notes = document.getElementById('modal-notes').value;
-            modal.close();
-            await saveToDB(id, condition, price, notes);
-        }
-
-        async function saveToDB(id, condition, price, notes) {
-            const item = photoStack.find(p => String(p.id) === String(id));
-            if (!item) return log("Error: Item lost.");
-
-            const btn = document.getElementById(`btn-${id}`);
-            btn.innerText = "Saving..."; btn.disabled = true;
-
-            try {
-                const payload = {
-                    artist: item.result.artist,
-                    album: item.result.album,
-                    year: item.result.year,
-                    cat_num: item.result.cat_num,
-                    url: item.result.url,
-                    image: "Image Not Saved",
-                    condition: condition,
-                    price: price,
-                    notes: notes
-                };
-
-                await fetch(CONFIG.sheet, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify(payload)
-                });
-
-                btn.innerText = "Saved!";
-                btn.style.background = "#555";
-                log("Saved to Database!");
-            } catch(e) {
-                btn.innerText = "Error"; btn.disabled = false;
-                alert("Save failed.");
-            }
-        }
-
-        // 5. RENDER
+        // --- RENDERER ---
         function renderGallery() {
             const el = document.getElementById('gallery');
             el.innerHTML = '';
             document.getElementById('count').innerText = photoStack.length;
 
             photoStack.slice().reverse().forEach(item => {
-                let html = `<div class="gallery-item">
-                    <img src="${item.data}">
-                    <div class="info">`;
+                const isDup = item.result && item.result.isDuplicate;
+                const dupClass = isDup ? 'is-dup' : '';
+                let html = `<div class="gallery-item ${dupClass}">`;
+                if (isDup) { html += `<div class="dup-banner">⚠️ In Collection (${item.result.dupCondition})</div>`; }
+                html += `<div class="img-wrap"><img src="${item.data}"></div><div class="card-content">`;
                 
                 if(item.result) {
-                    html += `<strong>${item.result.artist || 'Unknown'}</strong>
-                             <em>${item.result.album || 'Unknown'}</em>
-                             <div style="color:#666; font-size:0.9em; margin-bottom:10px;">
-                                ${item.result.year || '?'} • ${item.result.cat_num || 'No Cat#'}
-                             </div>`;
+                    html += `<div class="info"><strong>${item.result.artist || 'Unknown'}</strong><em>${item.result.album || 'Unknown'}</em></div>`;
                     html += `<div class="btn-group">`;
                     if(item.result.url) {
-                         html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">
-                                    ${item.result.success ? '💿 View Price' : '🔍 Search'}
-                                 </a>`;
+                         html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">${item.result.success ? '💿 View Price' : '🔍 Search'}</a>`;
                     }
-                    html += `<button id="btn-${item.id}" onclick="openSaveModal(${item.id})" class="action-btn btn-save">
-                                💾 Save to DB
-                             </button>`;
+                    html += `<button id="btn-${item.id}" onclick="openSaveModal(${item.id})" class="action-btn btn-save">💾 Save</button>`;
                     html += `</div>`;
                 } else { html += `<span style="color:#666">...Waiting...</span>`; }
                 html += `</div></div>`;
@@ -350,6 +307,44 @@
             });
         }
         function log(m) { const l = document.getElementById('logs'); l.innerText += '\n> ' + m; l.scrollTop = l.scrollHeight; }
+
+        // --- MODAL ---
+        function openSaveModal(id) {
+            if(!CONFIG.sheet) return alert("No Database Connected!");
+            document.getElementById('modal-condition').value = "";
+            document.getElementById('condition-help').style.display = "none";
+            document.getElementById('modal-price').value = "";
+            document.getElementById('modal-notes').value = "";
+            document.getElementById('modal-id').value = id;
+            document.getElementById('save-modal').showModal();
+        }
+        function showConditionHelp() {
+            const val = document.getElementById('modal-condition').value;
+            const help = document.getElementById('condition-help');
+            if(val && CONDITION_GUIDE[val]) { help.innerText = CONDITION_GUIDE[val]; help.style.display = 'block'; }
+            else { help.style.display = 'none'; }
+        }
+        function closeModal() { document.getElementById('save-modal').close(); }
+        async function confirmSave(event) {
+            event.preventDefault(); 
+            document.getElementById('save-modal').close();
+            const id = document.getElementById('modal-id').value;
+            await saveToDB(id, document.getElementById('modal-condition').value, document.getElementById('modal-price').value, document.getElementById('modal-notes').value);
+        }
+        async function saveToDB(id, condition, price, notes) {
+            const item = photoStack.find(p => String(p.id) === String(id));
+            if (!item) return log("Error: Item lost.");
+            const btn = document.getElementById(`btn-${id}`);
+            btn.innerText = "Saving..."; btn.disabled = true;
+            try {
+                await fetch(CONFIG.sheet, { method: 'POST', mode: 'no-cors', body: JSON.stringify({
+                    artist: item.result.artist, album: item.result.album, year: item.result.year,
+                    cat_num: item.result.cat_num, url: item.result.url, image: "Image Not Saved",
+                    condition: condition, price: price, notes: notes
+                })});
+                btn.innerText = "Saved!"; btn.style.background = "#555";
+            } catch(e) { btn.innerText = "Error"; btn.disabled = false; alert("Save failed."); }
+        }
 
         checkKeys();
     </script>
