@@ -6,16 +6,19 @@
     <title>V-Dog the Vinyl Hunter</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        /* APP STYLING */
-        body { max-width: 800px; margin: 0 auto; padding: 15px; background: #111; }
+        /* V-DOG BRANDING */
+        body { max-width: 800px; margin: 0 auto; padding: 15px; background: #0a0a0a; color: #e0e0e0; }
         
-        /* 1. SETUP BOX (Shown on first load) */
+        h1, h2, h3, h4 { color: #fff; }
+        nav strong { color: #fbc02d; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* SETUP BOX */
         #settings-box { 
-            background: #222; padding: 25px; border-radius: 8px; margin-top: 20px; border: 1px solid #444; 
+            background: #1c1c1c; padding: 25px; border-radius: 8px; margin-top: 20px; border: 1px solid #333; 
         }
-        input[type="password"] { background: #000; border-color: #333; }
+        input { background: #111 !important; border-color: #333 !important; color: #fff !important; }
         
-        /* 2. CAMERA VIEW */
+        /* CAMERA */
         .camera-container { 
             position: relative; width: 100%; height: 350px; background: #000; 
             border-radius: 8px; overflow: hidden; margin-bottom: 20px; 
@@ -24,54 +27,48 @@
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* 3. CONTROLS */
-        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        button { padding: 12px; font-weight: bold; }
+        /* RESULTS GRID */
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
+        .gallery-item { background: #1a1a1a; padding: 12px; border-radius: 8px; border: 1px solid #333; display: flex; flex-direction: column; }
+        .gallery-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; margin-bottom: 10px; border: 1px solid #444;}
         
-        /* 4. GALLERY RESULTS */
-        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-        .gallery-item { background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333; }
-        .gallery-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; margin-bottom: 10px;}
-        
-        .info { font-size: 0.8em; line-height: 1.4em; }
+        .info { font-size: 0.85em; flex-grow: 1; }
         .info strong { color: #4dabf5; display: block; font-size: 1.1em; margin-bottom: 2px; }
         .info em { color: #ccc; font-style: normal; display: block; margin-bottom: 5px; }
         
-        /* Status Badges */
-        .status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-bottom: 8px; text-transform: uppercase; font-weight: bold;}
-        .bdg-pending { background: #333; color: #888; }
-        .bdg-done { background: #1b5e20; color: #a5d6a7; }
-        .bdg-error { background: #b71c1c; color: #ffcdd2; }
-
-        /* Links */
-        .discogs-btn { 
+        /* BUTTONS */
+        .btn-group { margin-top: 10px; display: grid; gap: 5px; }
+        .action-btn { 
             display: block; width: 100%; text-align: center; padding: 8px 0; 
-            margin-top: 8px; background: #fbc02d; color: #000; text-decoration: none; 
-            border-radius: 4px; font-weight: bold; font-size: 0.85em;
-            transition: opacity 0.2s;
+            border-radius: 4px; font-weight: bold; font-size: 0.8em; text-decoration: none; cursor: pointer; border: none;
         }
-        .discogs-btn:active { opacity: 0.7; }
+        .btn-discogs { background: #fbc02d; color: #000; }
+        .btn-save { background: #2e7d32; color: #fff; }
+        .btn-save:disabled { background: #555; cursor: default; opacity: 0.7; }
+
     </style>
 </head>
 <body>
 
     <nav>
-        <ul><li><strong>Vinyl Scout</strong></li></ul>
-        <ul><li><a href="#" class="secondary" onclick="clearKeys()" style="font-size:0.8em">Reset Keys</a></li></ul>
+        <ul><li><strong>🐕 V-Dog</strong></li></ul>
+        <ul><li><a href="#" class="secondary" onclick="clearKeys()" style="font-size:0.8em">Reset</a></li></ul>
     </nav>
 
     <div id="settings-box">
-        <h4 style="margin-bottom:10px;">🔐 App Setup</h4>
-        <p style="font-size:0.8em; color:#888; margin-bottom:20px;">
-            Your API keys are stored securely on your phone/computer. They are never sent to any server other than Google/Discogs.
-        </p>
-        <label for="input-gemini">Gemini API Key</label>
+        <h4>⚙️ V-Dog Setup</h4>
+        <p style="font-size:0.8em; color:#888;">Configure your Hunter. Keys are stored locally.</p>
+        
+        <label>Gemini API Key</label>
         <input type="password" id="input-gemini" placeholder="AIzaSy...">
         
-        <label for="input-discogs">Discogs Token</label>
-        <input type="password" id="input-discogs" placeholder="abc12345...">
+        <label>Discogs Token</label>
+        <input type="password" id="input-discogs" placeholder="abc123...">
         
-        <button onclick="saveKeys()" style="margin-top:10px;">Save & Launch App</button>
+        <label>Google Sheet Script URL (Optional)</label>
+        <input type="url" id="input-sheet" placeholder="https://script.google.com/macros/s/...">
+        
+        <button onclick="saveKeys()" style="margin-top:10px; background-color:#fbc02d; color:black; border:none;">🚀 Launch V-Dog</button>
     </div>
 
     <div id="app-interface" style="display:none;">
@@ -80,33 +77,35 @@
             <video id="camera-feed" autoplay playsinline muted></video>
         </div>
 
-        <div class="grid">
+        <div class="grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px;">
             <button onclick="takePhoto()">📸 Snap</button>
             <button class="secondary" onclick="document.getElementById('file-input').click()">📂 Upload</button>
-            <button class="contrast" id="process-btn" onclick="processBatch()">🚀 Process</button>
+            <button class="contrast" id="process-btn" onclick="processBatch()">⚡ Hunt</button>
         </div>
         <input type="file" id="file-input" multiple accept="image/*" onchange="handleFiles(this.files)" style="display:none;">
 
         <details open>
-            <summary>Scanned Records (<span id="count">0</span>)</summary>
+            <summary>Crate Digging (<span id="count">0</span>)</summary>
             <div id="gallery" class="gallery"></div>
         </details>
         
-        <div style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">
-            <small style="color:#666">System Logs:</small>
-            <pre id="logs" style="height: 80px; overflow-y: scroll; font-size: 0.7em; background: #000; padding: 5px; color:#0f0; border:1px solid #333;">System Ready...</pre>
+        <div style="margin-top:20px; padding-top:10px;">
+            <pre id="logs" style="height: 60px; overflow-y: scroll; font-size: 0.7em; background: #000; padding: 5px; color:#4caf50; border:1px solid #333;">V-Dog is ready to hunt...</pre>
         </div>
     </div>
 
     <script>
         // GLOBALS
-        let GEMINI_KEY = localStorage.getItem('v_gemini_key');
-        let DISCOGS_KEY = localStorage.getItem('v_discogs_key');
+        let CONFIG = {
+            gemini: localStorage.getItem('v_gemini'),
+            discogs: localStorage.getItem('v_discogs'),
+            sheet: localStorage.getItem('v_sheet')
+        };
         let photoStack = [];
 
-        // 1. INIT: CHECK FOR KEYS
+        // 1. INIT
         function checkKeys() {
-            if (GEMINI_KEY && DISCOGS_KEY) {
+            if (CONFIG.gemini && CONFIG.discogs) {
                 document.getElementById('settings-box').style.display = 'none';
                 document.getElementById('app-interface').style.display = 'block';
                 startCamera();
@@ -116,49 +115,47 @@
         function saveKeys() {
             const g = document.getElementById('input-gemini').value.trim();
             const d = document.getElementById('input-discogs').value.trim();
-            if(!g || !d) return alert("Both keys are required to function.");
+            const s = document.getElementById('input-sheet').value.trim();
             
-            localStorage.setItem('v_gemini_key', g);
-            localStorage.setItem('v_discogs_key', d);
+            if(!g || !d) return alert("Gemini and Discogs keys are required.");
+            
+            localStorage.setItem('v_gemini', g);
+            localStorage.setItem('v_discogs', d);
+            localStorage.setItem('v_sheet', s);
             location.reload(); 
         }
 
         function clearKeys() {
-            if(confirm("Forget API keys and reset app?")) {
+            if(confirm("Reset V-Dog settings?")) {
                 localStorage.clear();
                 location.reload();
             }
         }
 
-        // 2. CAMERA LOGIC
+        // 2. CAMERA
         async function startCamera() {
             try {
-                // 'environment' requests the back camera on phones
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: 'environment' } 
                 });
                 document.getElementById('camera-feed').srcObject = stream;
             } catch (e) {
-                log("Camera access failed. (This is normal on laptops without HTTPS, or if blocked). Upload mode is active.");
+                log("Camera unavailable. Upload mode active.");
             }
         }
 
         function takePhoto() {
             const video = document.getElementById('camera-feed');
-            if (!video.srcObject) return alert("Camera not active. Use Upload button.");
-            
+            if (!video.srcObject) return alert("Use Upload button.");
             const canvas = document.createElement('canvas');
-            // Resize to 800px width for optimal AI speed
             const scale = 800 / video.videoWidth;
             canvas.width = 800;
             canvas.height = video.videoHeight * scale;
-            
             canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
             addPhoto(canvas.toDataURL('image/jpeg', 0.7));
         }
 
         function handleFiles(files) {
-            log(`Processing ${files.length} uploads...`);
             Array.from(files).forEach(file => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
@@ -183,118 +180,136 @@
             renderGallery();
         }
 
-        // 3. PROCESSING LOGIC
+        // 3. HUNTER LOGIC
         async function processBatch() {
             const btn = document.getElementById('process-btn');
             btn.setAttribute('aria-busy', 'true');
-            btn.innerText = "Scanning...";
+            btn.innerText = "Hunting...";
             
             for(let i=0; i<photoStack.length; i++) {
                 let item = photoStack[i];
                 if(item.status === 'done') continue;
 
-                log(`Analyzing item ${i+1}...`);
-                
+                log(`Sniffing item ${i+1}...`);
                 try {
-                    // A. Call Gemini
+                    // A. Gemini Identify
                     const base64 = item.data.split(',')[1];
                     const gRes = await callGemini(base64);
-                    log(`Found: ${gRes.artist}`);
-                    
-                    item.result = gRes; 
-                    renderGallery();
+                    log(`Woof! Found: ${gRes.artist}`);
+                    item.result = gRes; renderGallery();
 
-                    // B. Call Discogs (Safe Mode)
+                    // B. Discogs Value
                     const dRes = await callDiscogs(gRes);
                     item.result = { ...gRes, ...dRes };
                     item.status = 'done';
 
                 } catch (e) {
-                    log("Error: " + e.message);
+                    log("Growl: " + e.message);
                     item.status = 'error';
                 }
                 renderGallery();
             }
             btn.setAttribute('aria-busy', 'false');
-            btn.innerText = "Start New Batch";
+            btn.innerText = "Hunt More";
         }
 
         async function callGemini(base64) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`;
-            const payload = {
-                contents: [{ parts: [
-                    { text: "Return strictly JSON: { \"artist\": \"Name\", \"album\": \"Title\", \"year\": \"19XX\", \"cat_num\": \"Number\" }" },
-                    { inline_data: { mime_type: "image/jpeg", data: base64 } }
-                ]}]
-            };
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
+            const payload = { contents: [{ parts: [
+                { text: "Return strictly JSON: { \"artist\": \"Name\", \"album\": \"Title\", \"year\": \"19XX\", \"cat_num\": \"Number\" }" },
+                { inline_data: { mime_type: "image/jpeg", data: base64 } }
+            ]}]};
             
             const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
-            if(!res.ok) throw new Error(`Gemini API Error: ${res.status}`);
-            
+            if(!res.ok) throw new Error(`Gemini Error ${res.status}`);
             const data = await res.json();
-            let text = data.candidates[0].content.parts[0].text;
-            // Clean Markdown
-            text = text.replace(/```json|```/g, '').trim();
+            let text = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
             return JSON.parse(text);
         }
 
         async function callDiscogs(data) {
             let q = `${data.artist} ${data.album} ${data.cat_num || ''}`;
             const manualUrl = `https://www.discogs.com/search/?q=${encodeURIComponent(q)}&type=release`;
-            
             try {
-                // 2.5s Timeout to prevent freezing
                 const controller = new AbortController();
                 setTimeout(() => controller.abort(), 2500);
-                
-                const res = await fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(q)}&token=${DISCOGS_KEY}`, {
-                    signal: controller.signal
-                });
-                
-                if(!res.ok) throw new Error("Blocked");
+                const res = await fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(q)}&token=${CONFIG.discogs}`, { signal: controller.signal });
                 const json = await res.json();
-                
-                if(json.results?.[0]) {
-                    return { 
-                        url: `https://www.discogs.com${json.results[0].uri}`,
-                        success: true 
-                    };
-                }
-            } catch(e) { 
-                // Fallback to manual link silently
-            }
-            
+                if(json.results?.[0]) return { url: `https://www.discogs.com${json.results[0].uri}`, success: true };
+            } catch(e) {}
             return { url: manualUrl, success: false };
         }
 
-        // 4. UI RENDERER
+        // 4. DATABASE SAVE
+        async function saveToDB(id) {
+            if(!CONFIG.sheet) return alert("No Database Connected! Add Script URL in settings.");
+            
+            const item = photoStack.find(p => p.id === id);
+            const btn = document.getElementById(`btn-${id}`);
+            
+            btn.innerText = "Saving...";
+            btn.disabled = true;
+
+            try {
+                // Send simplified object
+                const payload = {
+                    artist: item.result.artist,
+                    album: item.result.album,
+                    year: item.result.year,
+                    cat_num: item.result.cat_num,
+                    url: item.result.url,
+                    image: "Image Not Saved" // Sending full base64 to sheets is heavy, skipping for speed
+                };
+
+                await fetch(CONFIG.sheet, {
+                    method: 'POST',
+                    mode: 'no-cors', // Important for Apps Script
+                    body: JSON.stringify(payload)
+                });
+
+                btn.innerText = "Saved!";
+                btn.style.background = "#555";
+                log("Saved to Database!");
+            } catch(e) {
+                btn.innerText = "Error";
+                btn.disabled = false;
+                alert("Save failed. Check Script URL.");
+            }
+        }
+
+        // 5. RENDER
         function renderGallery() {
             const el = document.getElementById('gallery');
             el.innerHTML = '';
             document.getElementById('count').innerText = photoStack.length;
 
             photoStack.slice().reverse().forEach(item => {
-                let badgeClass = item.status === 'pending' ? 'bdg-pending' : (item.status === 'done' ? 'bdg-done' : 'bdg-error');
-                
                 let html = `<div class="gallery-item">
                     <img src="${item.data}">
-                    <div class="info">
-                        <span class="status-badge ${badgeClass}">${item.status}</span>`;
+                    <div class="info">`;
                 
                 if(item.result) {
                     html += `<strong>${item.result.artist || 'Unknown'}</strong>
                              <em>${item.result.album || 'Unknown'}</em>
-                             <div style="color:#666; font-size:0.9em;">
+                             <div style="color:#666; font-size:0.9em; margin-bottom:10px;">
                                 ${item.result.year || '?'} • ${item.result.cat_num || 'No Cat#'}
                              </div>`;
                     
+                    html += `<div class="btn-group">`;
+                    
                     if(item.result.url) {
-                        let color = item.result.success ? '#fbc02d' : '#e0e0e0';
-                        let text = item.result.success ? 'View Price / Details' : 'Manual Search';
-                        html += `<a href="${item.result.url}" target="_blank" class="discogs-btn" style="background:${color}">
-                                    ${text}
+                         html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">
+                                    ${item.result.success ? '💿 View Price' : '🔍 Search'}
                                  </a>`;
                     }
+                    
+                    // SAVE BUTTON
+                    html += `<button id="btn-${item.id}" onclick="saveToDB(${item.id})" class="action-btn btn-save">
+                                💾 Save to DB
+                             </button>`;
+                    html += `</div>`;
+                } else {
+                    html += `<span style="color:#666">...Waiting...</span>`;
                 }
                 html += `</div></div>`;
                 el.innerHTML += html;
@@ -307,7 +322,6 @@
             l.scrollTop = l.scrollHeight;
         }
 
-        // BOOT
         checkKeys();
     </script>
 </body>
