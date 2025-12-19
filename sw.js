@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vdog-v9.8'; // <--- Bumped to v9.8
+const CACHE_NAME = 'vdog-v10'; // <--- Bumped to v10
 const ASSETS = [
   './',
   './index.html',
