@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>V-Dog v9.8</title>
+    <title>V-Dog v10.0</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <meta name="theme-color" content="#fbc02d">
@@ -44,15 +44,19 @@
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* CONTROLS */
-        .grid { display: grid; grid-template-columns: 1fr 1fr 1.2fr 0.8fr 0.8fr; gap: 5px; margin-bottom: 15px; }
-        .grid button { padding: 8px 4px; font-size: 0.75em; white-space: nowrap; }
+        /* CONTROLS - UPDATED GRID */
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr; gap: 4px; margin-bottom: 15px; }
+        .grid button { padding: 8px 2px; font-size: 0.7em; white-space: nowrap; }
 
         /* GALLERY */
         .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
         .gallery-item { background: #1a1a1a; padding: 0; border-radius: 8px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; position: relative;}
-        .img-wrap { width: 100%; aspect-ratio: 1; overflow: hidden; border-bottom: 1px solid #333; }
+        
+        .img-wrap { width: 100%; aspect-ratio: 1; overflow: hidden; border-bottom: 1px solid #333; display: flex; align-items: center; justify-content: center; background: #111; }
         .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+        /* Placeholder Icon style */
+        .img-placeholder { font-size: 3em; color: #333; }
+
         .card-content { padding: 10px; flex-grow: 1; display: flex; flex-direction: column; }
         .info { font-size: 0.8em; margin-bottom: 8px; }
         .info strong { color: #4dabf5; display: block; font-size: 1.1em; margin-bottom: 2px; }
@@ -99,7 +103,7 @@
     <div id="splash-screen">
         <img src="vdog.jpg" id="splash-img" alt="V-Dog">
         <h2 style="color:#fbc02d; margin-bottom:5px;">V-Dog</h2>
-        <p style="color:#666; margin-bottom:25px; font-size:0.9em;">Vinyl Hunter v9.8</p>
+        <p style="color:#666; margin-bottom:25px; font-size:0.9em;">Vinyl Hunter v10.0</p>
         <button class="enter-btn" onclick="enterApp()">Enter</button>
         <div class="reset-link" onclick="clearKeys()">Reset App Settings</div>
     </div>
@@ -123,6 +127,8 @@
             <div class="grid">
                 <button onclick="takePhoto()">📸 Snap</button>
                 <button class="secondary" onclick="document.getElementById('file-input').click()">📂 Up</button>
+                <button class="secondary outline" onclick="openListModal()">📝 List</button>
+                
                 <button class="contrast" id="process-btn" onclick="processBatch()">⚡ Hunt</button>
                 <button class="outline" onclick="switchCamera()" id="lens-btn">🔄 Lens</button>
                 <button class="outline" onclick="toggleCamera()" id="cam-toggle">👁️ On</button>
@@ -174,11 +180,25 @@
             <form method="dialog">
                 <label>Artist</label> <input type="text" id="edit-artist">
                 <label>Album</label> <input type="text" id="edit-album">
-                <label>Catalog Number</label> <input type="text" id="edit-cat">
+                <label>Catalog Number (Gold Standard)</label> <input type="text" id="edit-cat">
                 <input type="hidden" id="edit-id">
                 <footer>
                     <button class="secondary" onclick="closeModal('edit-modal')">Cancel</button>
                     <button class="contrast" onclick="confirmEdit(event)">Update & Re-Search</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
+    
+    <dialog id="list-modal">
+        <article>
+            <header>📝 Batch Manual Entry</header>
+            <form method="dialog">
+                <p style="font-size:0.8em; color:#888;">Enter Catalog Numbers (e.g. SW-11523), one per line or comma separated.</p>
+                <textarea id="list-input" rows="5" placeholder="SW-11523&#10;V6-8509&#10;MCA-371"></textarea>
+                <footer>
+                    <button class="secondary" onclick="closeModal('list-modal')">Cancel</button>
+                    <button class="contrast" onclick="processListInput(event)">Start Hunt</button>
                 </footer>
             </form>
         </article>
@@ -224,33 +244,44 @@
                 let item = photoStack[i]; if(item.status === 'done') continue;
                 log(`Sniffing item ${i+1}...`);
                 try {
-                    const base64 = item.data.split(',')[1];
-                    const gRes = await callGeminiIdentify(base64);
-                    log(`AI Found: ${gRes.artist} / ${gRes.cat_num}`);
-                    checkDupAndRare(gRes); 
-                    item.result = gRes; renderGallery(); 
-                    
-                    const dRes = await callDiscogs(gRes);
-                    
-                    // --- THE FIX: FILL IN BOTH ALBUM AND ARTIST ---
-                    if (dRes.success) {
-                        if (item.result.album === "Unknown" || item.result.album === "") {
-                            item.result.album = dRes.foundAlbum || item.result.album;
+                    // Check if it's a Manual Text Item vs Photo
+                    if (item.isTextOnly) {
+                        // Skip Gemini, Manual Search Discogs directly
+                        log(`Searching text: ${item.textInput}`);
+                        item.result = { artist: "Unknown", album: "Unknown", cat_num: item.textInput, is_rare: false };
+                        checkDupAndRare(item.result);
+                        renderGallery();
+                        const dRes = await callDiscogs(item.result);
+                        // Force Update logic for text items
+                        if (dRes.success) {
+                            item.result.artist = dRes.foundArtist || "Unknown";
+                            item.result.album = dRes.foundAlbum || "Unknown";
                         }
-                        if (item.result.artist === "Unknown" || item.result.artist === "") {
-                            item.result.artist = dRes.foundArtist || item.result.artist;
+                        item.result = { ...item.result, ...dRes };
+                        item.status = 'done';
+                    } else {
+                        // Standard Photo Process
+                        const base64 = item.data.split(',')[1];
+                        const gRes = await callGeminiIdentify(base64);
+                        log(`AI Found: ${gRes.artist} / ${gRes.cat_num}`);
+                        checkDupAndRare(gRes); 
+                        item.result = gRes; renderGallery(); 
+                        
+                        const dRes = await callDiscogs(gRes);
+                        if (dRes.success) {
+                            if (item.result.album === "Unknown" || item.result.album === "") item.result.album = dRes.foundAlbum || item.result.album;
+                            if (item.result.artist === "Unknown" || item.result.artist === "") item.result.artist = dRes.foundArtist || item.result.artist;
                         }
+                        item.result = { ...item.result, ...dRes };
+                        
+                        // Mismatch Check
+                        if(item.result.success && item.result.foundAlbum) {
+                             const searchAlbum = item.result.album.toLowerCase().replace(/[^a-z0-9]/g, "");
+                             const foundTitle = item.result.foundAlbum.toLowerCase().replace(/[^a-z0-9]/g, "");
+                             if(!foundTitle.includes(searchAlbum) && !searchAlbum.includes(foundTitle)) { item.result.isMismatch = true; }
+                        }
+                        item.status = 'done';
                     }
-                    
-                    item.result = { ...item.result, ...dRes };
-                    
-                    // Mismatch Check
-                    if(item.result.success && item.result.foundAlbum) {
-                         const searchAlbum = item.result.album.toLowerCase().replace(/[^a-z0-9]/g, "");
-                         const foundTitle = item.result.foundAlbum.toLowerCase().replace(/[^a-z0-9]/g, "");
-                         if(!foundTitle.includes(searchAlbum) && !searchAlbum.includes(foundTitle)) { item.result.isMismatch = true; }
-                    }
-                    item.status = 'done';
                 } catch (e) { log("Error: " + e.message); item.status = 'error'; }
                 renderGallery();
             }
@@ -259,20 +290,7 @@
 
         async function callGeminiIdentify(base64) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
-            const promptText = `
-                Analyze this vinyl record image. Return JSON: { 
-                    "artist": "Name or Unknown", 
-                    "album": "Title or Unknown", 
-                    "year": "19XX", 
-                    "cat_num": "Number", 
-                    "is_rare": boolean, 
-                    "rare_label": "String" 
-                }
-                CRITICAL RULES:
-                1. If you see a number (Catalog #) but NO album art/title (e.g. a close-up of a label), return 'Unknown' for 'album' and 'artist'. DO NOT GUESS.
-                2. Extract text precisely.
-                3. Set 'is_rare' true ONLY for high value items.
-            `;
+            const promptText = `Analyze vinyl. JSON: { "artist": "Name/Unknown", "album": "Title/Unknown", "year": "19XX", "cat_num": "Number", "is_rare": boolean, "rare_label": "String" }. Rules: 1. If no art, set artist/album Unknown. 2. No guessing.`;
             const payload = { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "image/jpeg", data: base64 } }]}]};
             const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
             const data = await res.json();
@@ -295,23 +313,14 @@
                 const json = await res.json();
                 
                 if(json.results?.[0]) {
-                    const fullTitle = json.results[0].title; // usually "Artist - Album"
-                    let foundArtist = "";
-                    let foundAlbum = fullTitle;
-                    
-                    // Try to split "Artist - Album"
+                    const fullTitle = json.results[0].title; 
+                    let foundArtist = ""; let foundAlbum = fullTitle;
                     if (fullTitle.includes(" - ")) {
                         const parts = fullTitle.split(" - ");
                         foundArtist = parts[0];
                         foundAlbum = parts.slice(1).join(" - ");
                     }
-                    
-                    return { 
-                        url: `https://www.discogs.com${json.results[0].uri}`, 
-                        success: true, 
-                        foundAlbum: foundAlbum,
-                        foundArtist: foundArtist
-                    };
+                    return { url: `https://www.discogs.com${json.results[0].uri}`, success: true, foundAlbum: foundAlbum, foundArtist: foundArtist };
                 }
             } catch(e) {}
             return { url: manualUrl, success: false };
@@ -327,17 +336,23 @@
                 const isNoMatch = r && !r.success;
                 
                 let cardClass = ''; 
-                if (isNoMatch) cardClass = 'is-no-match';
-                else if (isMismatch) cardClass = 'is-mismatch';
-                else if (isDup) cardClass = 'is-dup'; 
-                else if (isRare) cardClass = 'is-rare';
+                if (isNoMatch) cardClass = 'is-no-match'; else if (isMismatch) cardClass = 'is-mismatch'; else if (isDup) cardClass = 'is-dup'; else if (isRare) cardClass = 'is-rare';
 
                 let html = `<div class="gallery-item ${cardClass}"><div class="banner-stack">`;
                 if (isNoMatch) html += `<div class="no-match-banner">🚫 No Match Found</div>`;
                 if (isMismatch) html += `<div class="mismatch-banner">⚠️ Check Match</div>`;
                 if (isDup) { let dupText = "⚠️ IN COLLECTION"; if (r.dupCondition) dupText += ` (${r.dupCondition})`; html += `<div class="dup-banner">${dupText}</div>`; }
                 if (isRare) html += `<div class="rare-banner">${r.rare_label || "💎 HIDDEN GEM"}</div>`;
-                html += `</div><div class="img-wrap"><img src="${item.data}"></div><div class="card-content">`;
+                
+                // IMAGE OR PLACEHOLDER
+                html += `</div><div class="img-wrap">`;
+                if (item.isTextOnly) {
+                    html += `<div class="img-placeholder">💿</div>`;
+                } else {
+                    html += `<img src="${item.data}">`;
+                }
+                html += `</div><div class="card-content">`;
+                
                 if(r) {
                     html += `<div class="info"><strong>${r.artist || 'Unknown'}</strong><em>${r.album || 'Unknown'}</em>
                              <div style="font-size:0.9em; color:#888;">#${r.cat_num || 'Unknown'}</div></div>`;
@@ -372,6 +387,40 @@
                 return dbAlbum.includes(searchAlbum) && dbArtist.includes(searchArtist);
             });
         }
+
+        // --- NEW: LIST INPUT LOGIC ---
+        function openListModal() {
+            document.getElementById('list-input').value = "";
+            document.getElementById('list-modal').showModal();
+        }
+        
+        function processListInput(e) {
+            e.preventDefault();
+            const text = document.getElementById('list-input').value;
+            if(!text.trim()) return;
+            
+            // Split by comma or newline, cleanup whitespace
+            const lines = text.split(/[\n,]+/).map(t => t.trim()).filter(t => t.length > 0);
+            
+            lines.forEach(num => {
+                // Add "Text Item" to stack
+                photoStack.push({ 
+                    id: Date.now() + Math.random(), 
+                    data: null, // No Image
+                    isTextOnly: true,
+                    textInput: num,
+                    status: 'pending', 
+                    result: null 
+                });
+            });
+            
+            document.getElementById('list-modal').close();
+            renderGallery();
+            // Auto trigger processing
+            processBatch();
+        }
+
+        // --- EDIT LOGIC (FIXED) ---
         function openEditModal(id) {
             const item = photoStack.find(p => String(p.id) === String(id)); if(!item) return;
             document.getElementById('edit-artist').value = item.result.artist || "";
@@ -384,70 +433,77 @@
             e.preventDefault();
             const id = document.getElementById('edit-id').value;
             const item = photoStack.find(p => String(p.id) === String(id)); if(!item) return;
+            // Update
             item.result.artist = document.getElementById('edit-artist').value;
             item.result.album = document.getElementById('edit-album').value;
             item.result.cat_num = document.getElementById('edit-cat').value;
             item.result.isDuplicate = false; item.result.isMismatch = false; 
-            checkDupAndRare(item.result);
+            
             log("Re-checking Discogs...");
             const dRes = await callDiscogs(item.result);
+            
+            // THE FIX: Overwrite hallucinated data with real data
+            if(dRes.success) {
+                if (dRes.foundArtist) item.result.artist = dRes.foundArtist;
+                if (dRes.foundAlbum) item.result.album = dRes.foundAlbum;
+                item.result.isMismatch = false; // Trust Discogs match
+            }
+            
             item.result.url = dRes.url; item.result.success = dRes.success;
+            checkDupAndRare(item.result);
+
             document.getElementById('edit-modal').close(); renderGallery(); log("Updated!");
         }
+
         function askVDog(id) {
             const item = photoStack.find(p => String(p.id) === String(id)); if(!item) return;
             document.getElementById('vdog-text').innerText = "Sniffing...";
             document.getElementById('vdog-modal').showModal();
-            const base64 = item.data.split(',')[1];
-            const prompt = `You are V-Dog, a groovy 70s vinyl hunter. Identify (${item.result.artist} - ${item.result.album}). Give me a 'Vibe Check'. Story/Fact/Context. Use slang. Under 80 words.`;
-            callGeminiRaw(prompt, base64).then(text => document.getElementById('vdog-text').innerText = text).catch(e => document.getElementById('vdog-text').innerText = "V-Dog is napping.");
+            let prompt = "";
+            if (item.isTextOnly) {
+                 prompt = `You are V-Dog. We found record #${item.result.cat_num} (${item.result.artist} - ${item.result.album}). Give me a vibe check.`;
+                 callGeminiRaw(prompt, null).then(text => document.getElementById('vdog-text').innerText = text).catch(e => document.getElementById('vdog-text').innerText = "V-Dog is napping.");
+            } else {
+                 const base64 = item.data.split(',')[1];
+                 prompt = `You are V-Dog. Identify (${item.result.artist} - ${item.result.album}). Give me a 'Vibe Check'.`;
+                 callGeminiRaw(prompt, base64).then(text => document.getElementById('vdog-text').innerText = text).catch(e => document.getElementById('vdog-text').innerText = "V-Dog is napping.");
+            }
         }
         async function callGeminiRaw(text, base64) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
-            const payload = { contents: [{ parts: [{ text: text }, { inline_data: { mime_type: "image/jpeg", data: base64 } }]}]};
+            let payload;
+            if (base64) {
+                payload = { contents: [{ parts: [{ text: text }, { inline_data: { mime_type: "image/jpeg", data: base64 } }]}]};
+            } else {
+                payload = { contents: [{ parts: [{ text: text }] }]};
+            }
             const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
             const data = await res.json();
             return data.candidates[0].content.parts[0].text;
         }
-        async function startCamera() {
-            if (videoDevices.length === 0) {
-                try {
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    videoDevices = devices.filter(device => device.kind === 'videoinput');
-                } catch(e) { log("Could not enumerate cams."); }
-            }
-            const constraints = { video: { facingMode: 'environment' } }; 
-            if (videoDevices.length > 0) {
-                currentDeviceIndex = currentDeviceIndex % videoDevices.length;
-                const deviceId = videoDevices[currentDeviceIndex].deviceId;
-                constraints.video = { deviceId: { exact: deviceId } };
-            }
-            try {
-                const video = document.getElementById('camera-feed');
-                if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); }
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-            } catch (e) { log("Cam Error: " + e.message); }
-        }
-        async function switchCamera() { if(videoDevices.length < 2) { alert("Only 1 camera found."); return; } currentDeviceIndex++; await startCamera(); log(`Switched to Cam ${currentDeviceIndex + 1}`); }
-        async function toggleCamera() {
-            const video = document.getElementById('camera-feed'); const btn = document.getElementById('cam-toggle');
-            if(isCamOn) { const stream = video.srcObject; if(stream) { const tracks = stream.getTracks(); tracks.forEach(track => track.stop()); video.srcObject = null; } isCamOn = false; btn.innerText = "👁️ Off"; btn.classList.add("secondary"); } 
-            else { await startCamera(); isCamOn = true; btn.innerText = "👁️ On"; btn.classList.remove("secondary"); }
-        }
-        function takePhoto() { const v = document.getElementById('camera-feed'); if (!v.srcObject) return alert("Cam OFF."); const c = document.createElement('canvas'); const s = 1200 / v.videoWidth; c.width = 1200; c.height = v.videoHeight * s; c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.8)); }
-        function handleFiles(f) { Array.from(f).forEach(file => { const r = new FileReader(); r.onload = (e) => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); const s = 1200 / i.width; c.width = 1200; c.height = i.height * s; c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.8)); }; i.src = e.target.result; }; r.readAsDataURL(file); }); }
+
+        // [Standard Utils: log, clearBin, saveKeys, clearKeys, startCamera, switchCamera, toggleCamera, takePhoto, handleFiles, addPhoto, openSaveModal, showConditionHelp, closeModal, confirmSave, saveToDB... SAME AS BEFORE]
         
         function log(m) { const l = document.getElementById('logs'); l.innerText += '\n> ' + m; l.scrollTop = l.scrollHeight; }
         function clearBin() { if(confirm("Clear all?")) { photoStack = []; renderGallery(); log("Bin cleared."); } }
         function saveKeys() { const g = document.getElementById('input-gemini').value.trim(); const d = document.getElementById('input-discogs').value.trim(); const s = document.getElementById('input-sheet').value.trim(); if(!g || !d || !s) return alert("Keys required."); localStorage.setItem('v_gemini', g); localStorage.setItem('v_discogs', d); localStorage.setItem('v_sheet', s); location.reload(); }
         function clearKeys() { if(confirm("Reset app?")) { localStorage.clear(); location.reload(); } }
+        async function startCamera() {
+            if (videoDevices.length === 0) { try { const d = await navigator.mediaDevices.enumerateDevices(); videoDevices = d.filter(device => device.kind === 'videoinput'); } catch(e) {} }
+            const constraints = { video: { facingMode: 'environment' } }; 
+            if (videoDevices.length > 0) { currentDeviceIndex = currentDeviceIndex % videoDevices.length; constraints.video = { deviceId: { exact: videoDevices[currentDeviceIndex].deviceId } }; }
+            try { const v = document.getElementById('camera-feed'); if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop()); const s = await navigator.mediaDevices.getUserMedia(constraints); v.srcObject = s; } catch (e) { log("Cam Error."); }
+        }
+        async function switchCamera() { if(videoDevices.length < 2) { alert("Only 1 camera found."); return; } currentDeviceIndex++; await startCamera(); log(`Switched to Cam ${currentDeviceIndex + 1}`); }
+        async function toggleCamera() { const v = document.getElementById('camera-feed'); const b = document.getElementById('cam-toggle'); if(isCamOn) { if(v.srcObject) v.srcObject.getTracks().forEach(t => t.stop()); isCamOn = false; b.innerText = "👁️ Off"; b.classList.add("secondary"); } else { await startCamera(); isCamOn = true; b.innerText = "👁️ On"; b.classList.remove("secondary"); } }
+        function takePhoto() { const v = document.getElementById('camera-feed'); if (!v.srcObject) return alert("Cam OFF."); const c = document.createElement('canvas'); const s = 1200 / v.videoWidth; c.width = 1200; c.height = v.videoHeight * s; c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.8)); }
+        function handleFiles(f) { Array.from(f).forEach(file => { const r = new FileReader(); r.onload = (e) => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); const s = 1200 / i.width; c.width = 1200; c.height = i.height * s; c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.8)); }; i.src = e.target.result; }; r.readAsDataURL(file); }); }
         function addPhoto(d) { photoStack.push({ id: Date.now() + Math.random(), data: d, status: 'pending', result: null }); renderGallery(); }
         function openSaveModal(id) { if(!CONFIG.sheet) return alert("No DB!"); document.getElementById('modal-condition').value=""; document.getElementById('condition-help').style.display="none"; document.getElementById('modal-price').value=""; document.getElementById('modal-notes').value=""; document.getElementById('modal-id').value=id; document.getElementById('save-modal').showModal(); }
         function showConditionHelp() { const v=document.getElementById('modal-condition').value; const h=document.getElementById('condition-help'); if(v&&CONDITION_GUIDE[v]){h.innerText=CONDITION_GUIDE[v];h.style.display='block';}else{h.style.display='none';} }
         function closeModal(id) { document.getElementById(id).close(); }
         async function confirmSave(e) { e.preventDefault(); document.getElementById('save-modal').close(); const id=document.getElementById('modal-id').value; await saveToDB(id, document.getElementById('modal-condition').value, document.getElementById('modal-price').value, document.getElementById('modal-notes').value); }
-        async function saveToDB(id, c, p, n) { const i=photoStack.find(p=>String(p.id)===String(id)); if(!i)return; const b=document.getElementById(`btn-${id}`); b.innerText="Saving..."; b.disabled=true; try{ await fetch(CONFIG.sheet,{method:'POST',mode:'no-cors',body:JSON.stringify({artist:i.result.artist, album:i.result.album, year:i.result.year, cat_num:i.result.cat_num, url:i.result.url, image:"Image Not Saved", condition:c, price:p, notes:n})}); b.innerText="Saved!"; b.style.background="#555"; if(c) setTimeout(fetchCollection,2000); }catch(e){ b.innerText="Error"; b.disabled=false; } }
+        async function saveToDB(id, c, p, n) { const i=photoStack.find(p=>String(p.id)===String(id)); if(!i)return; const b=document.getElementById(`btn-${id}`); b.innerText="Saving..."; b.disabled=true; try{ await fetch(CONFIG.sheet,{method:'POST',mode:'no-cors',body:JSON.stringify({artist:i.result.artist, album:i.result.album, year:i.result.year, cat_num:i.result.cat_num, url:i.result.url, image: i.isTextOnly ? "Manual Entry" : "Image Not Saved", condition:c, price:p, notes:n})}); b.innerText="Saved!"; b.style.background="#555"; if(c) setTimeout(fetchCollection,2000); }catch(e){ b.innerText="Error"; b.disabled=false; } }
     </script>
 </body>
 </html>
