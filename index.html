@@ -70,15 +70,43 @@
         .btn-discogs { background: #fbc02d; color: #000; }
         .btn-listen { background: #c62828; color: #fff; }
         .btn-save { background: #2e7d32; color: #fff; }
-        .btn-vdog { background: #7b1fa2; color: #fff; margin-bottom: 5px; } /* Purple for V-Dog */
+        .btn-vdog { background: #7b1fa2; color: #fff; margin-bottom: 5px; } 
         .btn-save:disabled { background: #555; cursor: default; opacity: 0.7; }
 
-        /* MODALS */
-        dialog { background: #1a1a1a; border: 1px solid #444; border-radius: 8px; color: white; width: 90%; max-width: 400px;}
+        /* MODALS (General) */
+        dialog { background: transparent; border: none; } /* Reset default dialog */
+        
         #condition-help { font-size: 0.75em; color: #fbc02d; background: #332b00; padding: 8px; border-radius: 4px; margin-bottom: 15px; display: none; border-left: 3px solid #fbc02d;}
         
-        /* V-DOG MODAL TEXT */
-        #vdog-text { font-family: 'Courier New', monospace; font-size: 0.9em; line-height: 1.5em; color: #e1bee7; white-space: pre-wrap; }
+        /* --- NEW V-DOG MODAL STYLING --- */
+        dialog article {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            max-width: 500px;
+            width: 100%;
+            border-radius: 8px;
+        }
+        
+        #vdog-header {
+            font-size: 1.2em;
+            color: #e1bee7; 
+            margin-bottom: 0;
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        #vdog-text {
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.5em;
+            color: #fff;
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #9c27b0;
+            white-space: pre-wrap;
+            margin: 10px 0;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
@@ -130,35 +158,47 @@
     </div>
 
     <dialog id="save-modal">
-        <header>💾 Add to Collection</header>
-        <form method="dialog">
-            <label>Condition</label>
-            <select id="modal-condition" onchange="showConditionHelp()">
-                <option value="" selected>Select...</option>
-                <option value="Mint">Mint (M)</option>
-                <option value="NM">Near Mint (NM)</option>
-                <option value="VG+">Very Good Plus (VG+)</option>
-                <option value="VG">Very Good (VG)</option>
-                <option value="G+">Good Plus (G+)</option>
-                <option value="P">Poor (P)</option>
-            </select>
-            <div id="condition-help"></div>
-            <label>Price Paid</label> <input type="number" id="modal-price" placeholder="0.00" step="0.01">
-            <label>Notes</label> <input type="text" id="modal-notes">
-            <input type="hidden" id="modal-id">
-            <footer>
-                <button class="secondary" onclick="closeModal('save-modal')">Cancel</button>
-                <button class="btn-save" onclick="confirmSave(event)">Confirm Save</button>
-            </footer>
-        </form>
+        <article>
+            <header>💾 Add to Collection</header>
+            <form method="dialog">
+                <label>Condition</label>
+                <select id="modal-condition" onchange="showConditionHelp()">
+                    <option value="" selected>Select...</option>
+                    <option value="Mint">Mint (M)</option>
+                    <option value="NM">Near Mint (NM)</option>
+                    <option value="VG+">Very Good Plus (VG+)</option>
+                    <option value="VG">Very Good (VG)</option>
+                    <option value="G+">Good Plus (G+)</option>
+                    <option value="P">Poor (P)</option>
+                </select>
+                <div id="condition-help"></div>
+                <label>Price Paid</label> <input type="number" id="modal-price" placeholder="0.00" step="0.01">
+                <label>Notes</label> <input type="text" id="modal-notes">
+                <input type="hidden" id="modal-id">
+                <footer>
+                    <button class="secondary" onclick="closeModal('save-modal')">Cancel</button>
+                    <button class="btn-save" onclick="confirmSave(event)">Confirm Save</button>
+                </footer>
+            </form>
+        </article>
     </dialog>
 
     <dialog id="vdog-modal">
-        <header style="color:#e1bee7">🐕 V-Dog Says...</header>
-        <div id="vdog-text">Loading cosmic wisdom...</div>
-        <footer>
-            <button class="secondary" onclick="closeModal('vdog-modal')" style="width:100%">Right on, V-Dog</button>
-        </footer>
+        <article>
+            <header>
+                <div id="vdog-header">
+                    <span>🐕</span> <strong>V-Dog Says...</strong>
+                </div>
+            </header>
+            
+            <div id="vdog-text">Loading cosmic wisdom...</div>
+            
+            <footer>
+                <button class="secondary" onclick="closeModal('vdog-modal')" style="width:100%; font-weight:bold;">
+                    Right on, V-Dog 🤙
+                </button>
+            </footer>
+        </article>
     </dialog>
 
     <script>
@@ -222,7 +262,7 @@
                 log(`Sniffing item ${i+1}...`);
                 try {
                     const base64 = item.data.split(',')[1];
-                    const gRes = await callGeminiIdentify(base64); // Split into specific Identify call
+                    const gRes = await callGeminiIdentify(base64);
                     log(`Found: ${gRes.artist}`);
                     
                     const dup = checkDuplicate(gRes.artist, gRes.album);
@@ -237,7 +277,7 @@
             btn.setAttribute('aria-busy', 'false'); btn.innerText = "Hunt More";
         }
 
-        // 5. V-DOG PERSONALITY LOGIC
+        // 5. V-DOG PERSONALITY
         async function askVDog(id) {
             const item = photoStack.find(p => String(p.id) === String(id));
             if(!item) return;
@@ -249,7 +289,6 @@
 
             try {
                 const base64 = item.data.split(',')[1];
-                // PROMPT ENGINEERING FOR V-DOG PERSONA
                 const prompt = `You are V-Dog, a grizzled, groovy 70s vinyl hunter. 
                 Identify this record (${item.result.artist} - ${item.result.album}). 
                 Give me a 'Vibe Check'. Tell me a short story, a fact about the band, or the cultural context. 
@@ -314,7 +353,6 @@
             renderGallery();
         }
         
-        // RENAMED: Specifically for the JSON data pull
         async function callGeminiIdentify(base64) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
             const payload = { contents: [{ parts: [{ text: "Return strictly JSON: { \"artist\": \"Name\", \"album\": \"Title\", \"year\": \"19XX\", \"cat_num\": \"Number\" }" }, { inline_data: { mime_type: "image/jpeg", data: base64 } }]}]};
@@ -355,9 +393,7 @@
                     html += `<div class="info"><strong>${item.result.artist || 'Unknown'}</strong><em>${item.result.album || 'Unknown'}</em></div>`;
                     
                     html += `<div class="btn-group">`;
-                    // V-DOG BUTTON
                     html += `<button onclick="askVDog(${item.id})" class="action-btn btn-vdog">🐶 V-Dog Says...</button>`;
-                    
                     html += `<div class="btn-row">`;
                     if(item.result.url) { html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">${item.result.success ? '💿 Price' : '🔍 Discogs'}</a>`; }
                     const searchQ = encodeURIComponent(`${item.result.artist} ${item.result.album}`);
@@ -410,8 +446,6 @@
                 if(condition) setTimeout(fetchCollection, 2000); 
             } catch(e) { btn.innerText = "Error"; btn.disabled = false; alert("Save failed."); }
         }
-
-        // On Load, wait for user to click splash
     </script>
 </body>
 </html>
