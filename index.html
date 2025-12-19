@@ -6,7 +6,7 @@
     <title>V-Dog the Vinyl Hunter</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        /* BRANDING & CORE */
+        /* BRANDING */
         body { max-width: 800px; margin: 0 auto; padding: 15px; background: #0a0a0a; color: #e0e0e0; }
         
         /* SETUP BOX */
@@ -22,21 +22,19 @@
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* GALLERY & CARDS */
+        /* GALLERY */
         .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
         .gallery-item { background: #1a1a1a; padding: 0; border-radius: 8px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; position: relative;}
         
-        /* Image Area */
         .img-wrap { width: 100%; aspect-ratio: 1; overflow: hidden; border-bottom: 1px solid #333; }
         .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* Content Area */
         .card-content { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; }
+        
         .info { font-size: 0.85em; margin-bottom: 10px; }
         .info strong { color: #4dabf5; display: block; font-size: 1.1em; margin-bottom: 2px; }
         .info em { color: #ccc; font-style: normal; display: block; }
 
-        /* DUPLICATE WARNING BANNER */
+        /* DUPLICATE BANNER */
         .dup-banner {
             background: #d32f2f; color: white; font-weight: bold; font-size: 0.75em;
             text-align: center; padding: 5px; text-transform: uppercase;
@@ -47,11 +45,18 @@
         
         /* BUTTONS */
         .btn-group { margin-top: auto; display: grid; gap: 8px; }
+        
+        /* Button Row for Search/Listen */
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
         .action-btn { 
-            display: block; width: 100%; text-align: center; padding: 8px 0; 
-            border-radius: 4px; font-weight: bold; font-size: 0.8em; text-decoration: none; cursor: pointer; border: none;
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; padding: 8px 0; border-radius: 4px; 
+            font-weight: bold; font-size: 0.8em; text-decoration: none; 
+            cursor: pointer; border: none;
         }
         .btn-discogs { background: #fbc02d; color: #000; }
+        .btn-listen { background: #c62828; color: #fff; } /* YouTube Red */
         .btn-save { background: #2e7d32; color: #fff; }
         .btn-save:disabled { background: #555; cursor: default; opacity: 0.7; }
 
@@ -71,7 +76,7 @@
         <h4>⚙️ V-Dog Setup</h4>
         <label>Gemini API Key</label> <input type="password" id="input-gemini">
         <label>Discogs Token</label> <input type="password" id="input-discogs">
-        <label>Google Sheet Script URL</label> <input type="url" id="input-sheet" placeholder="https://script.google.com/macros/s/...">
+        <label>Google Sheet Script URL</label> <input type="url" id="input-sheet">
         <button onclick="saveKeys()" style="margin-top:10px; background-color:#fbc02d; color:black; border:none;">🚀 Launch V-Dog</button>
     </div>
 
@@ -89,9 +94,7 @@
 
         <details open>
             <summary>Crate Digging (<span id="count">0</span>)</summary>
-            <small id="db-status" onclick="fetchCollection()" style="color:#666; font-size:0.7em; margin-left:10px; cursor:pointer;">
-                ⏳ Waiting for DB...
-            </small>
+            <small id="db-status" onclick="fetchCollection()" style="color:#666; font-size:0.7em; margin-left:10px; cursor:pointer;">⏳ Connecting...</small>
             <div id="gallery" class="gallery"></div>
         </details>
         
@@ -136,9 +139,8 @@
             "G+": "Significant noise/wear but plays through.", "P": "Cracked/Skips. Bad."
         };
 
-        // 1. INIT & DATABASE SYNC
+        // 1. INIT & DB SYNC
         function checkKeys() {
-            // FIXED: Now checks if 'sheet' key is present too
             if (CONFIG.gemini && CONFIG.discogs && CONFIG.sheet) {
                 document.getElementById('settings-box').style.display = 'none';
                 document.getElementById('app-interface').style.display = 'block';
@@ -151,30 +153,25 @@
             if(!CONFIG.sheet) return;
             const statusEl = document.getElementById('db-status');
             statusEl.innerText = "🔄 Syncing DB...";
-            
             try {
-                // Fetch the sheet data (GET request)
                 const res = await fetch(CONFIG.sheet);
-                if(!res.ok) throw new Error("Network response was not ok");
-                
+                if(!res.ok) throw new Error("Net Error");
                 const data = await res.json();
                 collectionCache = data;
-                statusEl.innerText = `✅ Database Synced (${data.length} records)`;
+                statusEl.innerText = `✅ Synced (${data.length} records)`;
                 statusEl.style.color = "#4caf50";
             } catch(e) {
-                statusEl.innerText = "⚠️ DB Sync Failed (Tap to Retry)";
-                statusEl.style.color = "red";
+                statusEl.innerText = "⚠️ DB Sync Failed"; statusEl.style.color = "red";
                 log("DB Error: " + e.message);
             }
         }
 
-        // 2. LOGIC: DUPLICATE CHECKER
+        // 2. DUPLICATE LOGIC
         function checkDuplicate(artist, album) {
             if (!collectionCache.length) return null;
             const normalize = (str) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
             const searchArtist = normalize(artist);
             const searchAlbum = normalize(album);
-
             return collectionCache.find(row => {
                 const dbArtist = normalize(row.artist);
                 const dbAlbum = normalize(row.album);
@@ -182,7 +179,7 @@
             });
         }
 
-        // 3. CORE PROCESSING
+        // 3. PROCESSOR
         async function processBatch() {
             const btn = document.getElementById('process-btn');
             btn.setAttribute('aria-busy', 'true'); btn.innerText = "Hunting...";
@@ -200,19 +197,15 @@
                     const dup = checkDuplicate(gRes.artist, gRes.album);
                     if (dup) {
                         gRes.isDuplicate = true;
-                        gRes.dupCondition = dup.cond || "Unknown";
-                        log(`⚠️ Duplicate Found! (You own this)`);
+                        gRes.dupCondition = dup.cond || ""; // Defaults to empty string if missing
+                        log(`⚠️ Duplicate!`);
                     }
 
-                    item.result = gRes; 
-                    renderGallery(); 
-
+                    item.result = gRes; renderGallery(); 
                     const dRes = await callDiscogs(gRes);
                     item.result = { ...gRes, ...dRes };
                     item.status = 'done';
-                } catch (e) {
-                    log("Error: " + e.message); item.status = 'error';
-                }
+                } catch (e) { log("Error: " + e.message); item.status = 'error'; }
                 renderGallery();
             }
             btn.setAttribute('aria-busy', 'false'); btn.innerText = "Hunt More";
@@ -223,7 +216,7 @@
             const g = document.getElementById('input-gemini').value.trim();
             const d = document.getElementById('input-discogs').value.trim();
             const s = document.getElementById('input-sheet').value.trim();
-            if(!g || !d || !s) return alert("All 3 keys are required for V-Dog to work.");
+            if(!g || !d || !s) return alert("Keys required.");
             localStorage.setItem('v_gemini', g); localStorage.setItem('v_discogs', d); localStorage.setItem('v_sheet', s);
             location.reload(); 
         }
@@ -280,7 +273,7 @@
             return { url: manualUrl, success: false };
         }
 
-        // --- RENDERER ---
+        // --- RENDERER (Updated) ---
         function renderGallery() {
             const el = document.getElementById('gallery');
             el.innerHTML = '';
@@ -289,18 +282,44 @@
             photoStack.slice().reverse().forEach(item => {
                 const isDup = item.result && item.result.isDuplicate;
                 const dupClass = isDup ? 'is-dup' : '';
+                
+                // --- CLEANER WARNING LOGIC ---
+                // Only show parenthesis if a condition actually exists
+                let dupText = "⚠️ IN COLLECTION";
+                if (item.result && item.result.dupCondition) {
+                    dupText += ` (${item.result.dupCondition})`;
+                }
+
                 let html = `<div class="gallery-item ${dupClass}">`;
-                if (isDup) { html += `<div class="dup-banner">⚠️ In Collection (${item.result.dupCondition})</div>`; }
+                if (isDup) { html += `<div class="dup-banner">${dupText}</div>`; }
+                
                 html += `<div class="img-wrap"><img src="${item.data}"></div><div class="card-content">`;
                 
                 if(item.result) {
-                    html += `<div class="info"><strong>${item.result.artist || 'Unknown'}</strong><em>${item.result.album || 'Unknown'}</em></div>`;
+                    // INFO
+                    html += `<div class="info">
+                                <strong>${item.result.artist || 'Unknown'}</strong>
+                                <em>${item.result.album || 'Unknown'}</em>
+                             </div>`;
+                    
+                    // BUTTONS
                     html += `<div class="btn-group">`;
+                    
+                    // Row 1: Search & Listen
+                    html += `<div class="btn-row">`;
                     if(item.result.url) {
-                         html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">${item.result.success ? '💿 View Price' : '🔍 Search'}</a>`;
+                        html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">${item.result.success ? '💿 Price' : '🔍 Discogs'}</a>`;
                     }
-                    html += `<button id="btn-${item.id}" onclick="openSaveModal(${item.id})" class="action-btn btn-save">💾 Save</button>`;
+                    
+                    // LISTEN BUTTON (New)
+                    const searchQ = encodeURIComponent(`${item.result.artist} ${item.result.album}`);
+                    html += `<a href="https://www.youtube.com/results?search_query=${searchQ}" target="_blank" class="action-btn btn-listen">🎵 Listen</a>`;
                     html += `</div>`;
+
+                    // Row 2: Save
+                    html += `<button id="btn-${item.id}" onclick="openSaveModal(${item.id})" class="action-btn btn-save">💾 Save to DB</button>`;
+                    html += `</div>`;
+
                 } else { html += `<span style="color:#666">...Waiting...</span>`; }
                 html += `</div></div>`;
                 el.innerHTML += html;
@@ -343,6 +362,11 @@
                     condition: condition, price: price, notes: notes
                 })});
                 btn.innerText = "Saved!"; btn.style.background = "#555";
+                // Update the button text to show condition immediately
+                if(condition) {
+                     // Force a re-fetch of collection in background to keep sync
+                     setTimeout(fetchCollection, 2000); 
+                }
             } catch(e) { btn.innerText = "Error"; btn.disabled = false; alert("Save failed."); }
         }
 
