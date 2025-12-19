@@ -9,46 +9,58 @@
         /* BRANDING */
         body { max-width: 800px; margin: 0 auto; padding: 15px; background: #0a0a0a; color: #e0e0e0; }
         
+        /* SPLASH SCREEN */
+        #splash-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 9999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center;
+        }
+        #splash-img {
+            width: 90%; max-width: 400px; border-radius: 12px; 
+            border: 4px solid #fbc02d; margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(251, 192, 45, 0.4);
+        }
+        .enter-btn {
+            background: #fbc02d; color: black; font-weight: bold; border: none;
+            padding: 15px 30px; font-size: 1.2em; border-radius: 50px;
+            text-transform: uppercase; letter-spacing: 2px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
         /* SETUP BOX */
         #settings-box { background: #1c1c1c; padding: 25px; border-radius: 8px; margin-top: 20px; border: 1px solid #333; }
         input, select, textarea { background: #111 !important; border-color: #333 !important; color: #fff !important; }
-        
+
         /* CAMERA */
         .camera-container { 
             position: relative; width: 100%; height: 350px; background: #000; 
             border-radius: 8px; overflow: hidden; margin-bottom: 20px; 
-            display: flex; align-items: center; justify-content: center;
-            border: 2px solid #333;
+            display: flex; align-items: center; justify-content: center; border: 2px solid #333;
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         
         /* GALLERY */
         .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
         .gallery-item { background: #1a1a1a; padding: 0; border-radius: 8px; border: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; position: relative;}
-        
         .img-wrap { width: 100%; aspect-ratio: 1; overflow: hidden; border-bottom: 1px solid #333; }
         .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
         .card-content { padding: 12px; flex-grow: 1; display: flex; flex-direction: column; }
-        
         .info { font-size: 0.85em; margin-bottom: 10px; }
         .info strong { color: #4dabf5; display: block; font-size: 1.1em; margin-bottom: 2px; }
         .info em { color: #ccc; font-style: normal; display: block; }
-
+        
         /* DUPLICATE BANNER */
         .dup-banner {
             background: #d32f2f; color: white; font-weight: bold; font-size: 0.75em;
-            text-align: center; padding: 5px; text-transform: uppercase;
-            display: none; 
+            text-align: center; padding: 5px; text-transform: uppercase; display: none; 
         }
         .gallery-item.is-dup { border: 2px solid #d32f2f; }
         .gallery-item.is-dup .dup-banner { display: block; }
-        
+
         /* BUTTONS */
         .btn-group { margin-top: auto; display: grid; gap: 8px; }
-        
-        /* Button Row for Search/Listen */
         .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
         .action-btn { 
             display: flex; align-items: center; justify-content: center;
             width: 100%; padding: 8px 0; border-radius: 4px; 
@@ -56,50 +68,64 @@
             cursor: pointer; border: none;
         }
         .btn-discogs { background: #fbc02d; color: #000; }
-        .btn-listen { background: #c62828; color: #fff; } /* YouTube Red */
+        .btn-listen { background: #c62828; color: #fff; }
         .btn-save { background: #2e7d32; color: #fff; }
+        .btn-vdog { background: #7b1fa2; color: #fff; margin-bottom: 5px; } /* Purple for V-Dog */
         .btn-save:disabled { background: #555; cursor: default; opacity: 0.7; }
 
-        /* MODAL */
+        /* MODALS */
         dialog { background: #1a1a1a; border: 1px solid #444; border-radius: 8px; color: white; width: 90%; max-width: 400px;}
         #condition-help { font-size: 0.75em; color: #fbc02d; background: #332b00; padding: 8px; border-radius: 4px; margin-bottom: 15px; display: none; border-left: 3px solid #fbc02d;}
+        
+        /* V-DOG MODAL TEXT */
+        #vdog-text { font-family: 'Courier New', monospace; font-size: 0.9em; line-height: 1.5em; color: #e1bee7; white-space: pre-wrap; }
     </style>
 </head>
 <body>
+
+    <div id="splash-screen">
+        <img src="vdog.jpg" id="splash-img" alt="V-Dog">
+        <h2 style="color:#fbc02d; margin-bottom:10px;">V-Dog</h2>
+        <p style="color:#888; margin-bottom:30px;">The Vinyl Hunter</p>
+        <button class="enter-btn" onclick="enterApp()">Dig The Grooves</button>
+    </div>
 
     <nav>
         <ul><li><strong>🐕 V-Dog</strong></li></ul>
         <ul><li><a href="#" class="secondary" onclick="clearKeys()" style="font-size:0.8em">Reset</a></li></ul>
     </nav>
 
-    <div id="settings-box">
-        <h4>⚙️ V-Dog Setup</h4>
-        <label>Gemini API Key</label> <input type="password" id="input-gemini">
-        <label>Discogs Token</label> <input type="password" id="input-discogs">
-        <label>Google Sheet Script URL</label> <input type="url" id="input-sheet">
-        <button onclick="saveKeys()" style="margin-top:10px; background-color:#fbc02d; color:black; border:none;">🚀 Launch V-Dog</button>
-    </div>
-
-    <div id="app-interface" style="display:none;">
-        <div class="camera-container">
-            <video id="camera-feed" autoplay playsinline muted></video>
-        </div>
-
-        <div class="grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px;">
-            <button onclick="takePhoto()">📸 Snap</button>
-            <button class="secondary" onclick="document.getElementById('file-input').click()">📂 Upload</button>
-            <button class="contrast" id="process-btn" onclick="processBatch()">⚡ Hunt</button>
-        </div>
-        <input type="file" id="file-input" multiple accept="image/*" onchange="handleFiles(this.files)" style="display:none;">
-
-        <details open>
-            <summary>Crate Digging (<span id="count">0</span>)</summary>
-            <small id="db-status" onclick="fetchCollection()" style="color:#666; font-size:0.7em; margin-left:10px; cursor:pointer;">⏳ Connecting...</small>
-            <div id="gallery" class="gallery"></div>
-        </details>
+    <div id="main-content" style="display:none;">
         
-        <div style="margin-top:20px; padding-top:10px;">
-            <pre id="logs" style="height: 60px; overflow-y: scroll; font-size: 0.7em; background: #000; padding: 5px; color:#4caf50; border:1px solid #333;">V-Dog is ready...</pre>
+        <div id="settings-box">
+            <h4>⚙️ Setup</h4>
+            <label>Gemini API Key</label> <input type="password" id="input-gemini">
+            <label>Discogs Token</label> <input type="password" id="input-discogs">
+            <label>Sheet Script URL</label> <input type="url" id="input-sheet">
+            <button onclick="saveKeys()" style="margin-top:10px; background-color:#fbc02d; color:black; border:none;">🚀 Launch</button>
+        </div>
+
+        <div id="app-interface" style="display:none;">
+            <div class="camera-container">
+                <video id="camera-feed" autoplay playsinline muted></video>
+            </div>
+
+            <div class="grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                <button onclick="takePhoto()">📸 Snap</button>
+                <button class="secondary" onclick="document.getElementById('file-input').click()">📂 Upload</button>
+                <button class="contrast" id="process-btn" onclick="processBatch()">⚡ Hunt</button>
+            </div>
+            <input type="file" id="file-input" multiple accept="image/*" onchange="handleFiles(this.files)" style="display:none;">
+
+            <details open>
+                <summary>Crate Digging (<span id="count">0</span>)</summary>
+                <small id="db-status" onclick="fetchCollection()" style="color:#666; font-size:0.7em; margin-left:10px; cursor:pointer;">⏳ Connecting...</small>
+                <div id="gallery" class="gallery"></div>
+            </details>
+            
+            <div style="margin-top:20px; padding-top:10px;">
+                <pre id="logs" style="height: 60px; overflow-y: scroll; font-size: 0.7em; background: #000; padding: 5px; color:#4caf50; border:1px solid #333;">V-Dog is ready...</pre>
+            </div>
         </div>
     </div>
 
@@ -121,10 +147,18 @@
             <label>Notes</label> <input type="text" id="modal-notes">
             <input type="hidden" id="modal-id">
             <footer>
-                <button class="secondary" onclick="closeModal()">Cancel</button>
+                <button class="secondary" onclick="closeModal('save-modal')">Cancel</button>
                 <button class="btn-save" onclick="confirmSave(event)">Confirm Save</button>
             </footer>
         </form>
+    </dialog>
+
+    <dialog id="vdog-modal">
+        <header style="color:#e1bee7">🐕 V-Dog Says...</header>
+        <div id="vdog-text">Loading cosmic wisdom...</div>
+        <footer>
+            <button class="secondary" onclick="closeModal('vdog-modal')" style="width:100%">Right on, V-Dog</button>
+        </footer>
     </dialog>
 
     <script>
@@ -133,19 +167,21 @@
         let photoStack = [];
         let collectionCache = []; 
 
-        const CONDITION_GUIDE = {
-            "Mint": "Perfect. Never played.", "NM": "Nearly perfect. No signs of wear.",
-            "VG+": "Cosmetic defects only. Plays perfectly.", "VG": "Surface noise evident but light.",
-            "G+": "Significant noise/wear but plays through.", "P": "Cracked/Skips. Bad."
-        };
+        const CONDITION_GUIDE = { "Mint": "Perfect.", "NM": "Nearly perfect.", "VG+": "Cosmetic defects only.", "VG": "Surface noise evident.", "G+": "Significant noise.", "P": "Bad." };
 
-        // 1. INIT & DB SYNC
+        // 1. SPLASH SCREEN LOGIC
+        function enterApp() {
+            document.getElementById('splash-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            checkKeys();
+        }
+
+        // 2. INIT
         function checkKeys() {
             if (CONFIG.gemini && CONFIG.discogs && CONFIG.sheet) {
                 document.getElementById('settings-box').style.display = 'none';
                 document.getElementById('app-interface').style.display = 'block';
-                startCamera();
-                fetchCollection(); 
+                startCamera(); fetchCollection(); 
             }
         }
         
@@ -162,53 +198,76 @@
                 statusEl.style.color = "#4caf50";
             } catch(e) {
                 statusEl.innerText = "⚠️ DB Sync Failed"; statusEl.style.color = "red";
-                log("DB Error: " + e.message);
             }
         }
 
-        // 2. DUPLICATE LOGIC
+        // 3. DUPLICATE LOGIC
         function checkDuplicate(artist, album) {
             if (!collectionCache.length) return null;
             const normalize = (str) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
-            const searchArtist = normalize(artist);
-            const searchAlbum = normalize(album);
+            const searchArtist = normalize(artist); const searchAlbum = normalize(album);
             return collectionCache.find(row => {
-                const dbArtist = normalize(row.artist);
-                const dbAlbum = normalize(row.album);
+                const dbArtist = normalize(row.artist); const dbAlbum = normalize(row.album);
                 return dbAlbum.includes(searchAlbum) && dbArtist.includes(searchArtist);
             });
         }
 
-        // 3. PROCESSOR
+        // 4. PROCESSOR
         async function processBatch() {
             const btn = document.getElementById('process-btn');
             btn.setAttribute('aria-busy', 'true'); btn.innerText = "Hunting...";
-            
             for(let i=0; i<photoStack.length; i++) {
                 let item = photoStack[i];
                 if(item.status === 'done') continue;
-                
                 log(`Sniffing item ${i+1}...`);
                 try {
                     const base64 = item.data.split(',')[1];
-                    const gRes = await callGemini(base64);
+                    const gRes = await callGeminiIdentify(base64); // Split into specific Identify call
                     log(`Found: ${gRes.artist}`);
                     
                     const dup = checkDuplicate(gRes.artist, gRes.album);
-                    if (dup) {
-                        gRes.isDuplicate = true;
-                        gRes.dupCondition = dup.cond || ""; // Defaults to empty string if missing
-                        log(`⚠️ Duplicate!`);
-                    }
+                    if (dup) { gRes.isDuplicate = true; gRes.dupCondition = dup.cond || ""; log(`⚠️ Duplicate!`); }
 
                     item.result = gRes; renderGallery(); 
                     const dRes = await callDiscogs(gRes);
-                    item.result = { ...gRes, ...dRes };
-                    item.status = 'done';
+                    item.result = { ...gRes, ...dRes }; item.status = 'done';
                 } catch (e) { log("Error: " + e.message); item.status = 'error'; }
                 renderGallery();
             }
             btn.setAttribute('aria-busy', 'false'); btn.innerText = "Hunt More";
+        }
+
+        // 5. V-DOG PERSONALITY LOGIC
+        async function askVDog(id) {
+            const item = photoStack.find(p => String(p.id) === String(id));
+            if(!item) return;
+
+            const modal = document.getElementById('vdog-modal');
+            const textEl = document.getElementById('vdog-text');
+            textEl.innerText = "Sniffing out the vibes... 🦴";
+            modal.showModal();
+
+            try {
+                const base64 = item.data.split(',')[1];
+                // PROMPT ENGINEERING FOR V-DOG PERSONA
+                const prompt = `You are V-Dog, a grizzled, groovy 70s vinyl hunter. 
+                Identify this record (${item.result.artist} - ${item.result.album}). 
+                Give me a 'Vibe Check'. Tell me a short story, a fact about the band, or the cultural context. 
+                Was it a classic? An obscure gem? A reissue?
+                Use slang like 'Far out', 'Grooves', 'Wax', 'Dig it'. 
+                Keep it under 100 words. Be warm and nostalgic.`;
+
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
+                const payload = { contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64 } }]}]};
+                
+                const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+                const data = await res.json();
+                const reply = data.candidates[0].content.parts[0].text;
+                
+                textEl.innerText = reply;
+            } catch(e) {
+                textEl.innerText = "V-Dog is taking a nap. Try again later.";
+            }
         }
 
         // --- UTILS ---
@@ -254,13 +313,16 @@
             photoStack.push({ id: Date.now() + Math.random(), data: data, status: 'pending', result: null });
             renderGallery();
         }
-        async function callGemini(base64) {
+        
+        // RENAMED: Specifically for the JSON data pull
+        async function callGeminiIdentify(base64) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
             const payload = { contents: [{ parts: [{ text: "Return strictly JSON: { \"artist\": \"Name\", \"album\": \"Title\", \"year\": \"19XX\", \"cat_num\": \"Number\" }" }, { inline_data: { mime_type: "image/jpeg", data: base64 } }]}]};
             const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
             const data = await res.json();
             return JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim());
         }
+
         async function callDiscogs(data) {
             let q = `${data.artist} ${data.album} ${data.cat_num || ''}`;
             const manualUrl = `https://www.discogs.com/search/?q=${encodeURIComponent(q)}&type=release`;
@@ -273,7 +335,7 @@
             return { url: manualUrl, success: false };
         }
 
-        // --- RENDERER (Updated) ---
+        // --- RENDERER ---
         function renderGallery() {
             const el = document.getElementById('gallery');
             el.innerHTML = '';
@@ -282,44 +344,27 @@
             photoStack.slice().reverse().forEach(item => {
                 const isDup = item.result && item.result.isDuplicate;
                 const dupClass = isDup ? 'is-dup' : '';
-                
-                // --- CLEANER WARNING LOGIC ---
-                // Only show parenthesis if a condition actually exists
                 let dupText = "⚠️ IN COLLECTION";
-                if (item.result && item.result.dupCondition) {
-                    dupText += ` (${item.result.dupCondition})`;
-                }
+                if (item.result && item.result.dupCondition) dupText += ` (${item.result.dupCondition})`;
 
                 let html = `<div class="gallery-item ${dupClass}">`;
                 if (isDup) { html += `<div class="dup-banner">${dupText}</div>`; }
-                
                 html += `<div class="img-wrap"><img src="${item.data}"></div><div class="card-content">`;
                 
                 if(item.result) {
-                    // INFO
-                    html += `<div class="info">
-                                <strong>${item.result.artist || 'Unknown'}</strong>
-                                <em>${item.result.album || 'Unknown'}</em>
-                             </div>`;
+                    html += `<div class="info"><strong>${item.result.artist || 'Unknown'}</strong><em>${item.result.album || 'Unknown'}</em></div>`;
                     
-                    // BUTTONS
                     html += `<div class="btn-group">`;
+                    // V-DOG BUTTON
+                    html += `<button onclick="askVDog(${item.id})" class="action-btn btn-vdog">🐶 V-Dog Says...</button>`;
                     
-                    // Row 1: Search & Listen
                     html += `<div class="btn-row">`;
-                    if(item.result.url) {
-                        html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">${item.result.success ? '💿 Price' : '🔍 Discogs'}</a>`;
-                    }
-                    
-                    // LISTEN BUTTON (New)
+                    if(item.result.url) { html += `<a href="${item.result.url}" target="_blank" class="action-btn btn-discogs">${item.result.success ? '💿 Price' : '🔍 Discogs'}</a>`; }
                     const searchQ = encodeURIComponent(`${item.result.artist} ${item.result.album}`);
                     html += `<a href="https://www.youtube.com/results?search_query=${searchQ}" target="_blank" class="action-btn btn-listen">🎵 Listen</a>`;
                     html += `</div>`;
-
-                    // Row 2: Save
                     html += `<button id="btn-${item.id}" onclick="openSaveModal(${item.id})" class="action-btn btn-save">💾 Save to DB</button>`;
                     html += `</div>`;
-
                 } else { html += `<span style="color:#666">...Waiting...</span>`; }
                 html += `</div></div>`;
                 el.innerHTML += html;
@@ -327,7 +372,7 @@
         }
         function log(m) { const l = document.getElementById('logs'); l.innerText += '\n> ' + m; l.scrollTop = l.scrollHeight; }
 
-        // --- MODAL ---
+        // --- MODALS ---
         function openSaveModal(id) {
             if(!CONFIG.sheet) return alert("No Database Connected!");
             document.getElementById('modal-condition').value = "";
@@ -343,7 +388,7 @@
             if(val && CONDITION_GUIDE[val]) { help.innerText = CONDITION_GUIDE[val]; help.style.display = 'block'; }
             else { help.style.display = 'none'; }
         }
-        function closeModal() { document.getElementById('save-modal').close(); }
+        function closeModal(id) { document.getElementById(id).close(); }
         async function confirmSave(event) {
             event.preventDefault(); 
             document.getElementById('save-modal').close();
@@ -362,15 +407,11 @@
                     condition: condition, price: price, notes: notes
                 })});
                 btn.innerText = "Saved!"; btn.style.background = "#555";
-                // Update the button text to show condition immediately
-                if(condition) {
-                     // Force a re-fetch of collection in background to keep sync
-                     setTimeout(fetchCollection, 2000); 
-                }
+                if(condition) setTimeout(fetchCollection, 2000); 
             } catch(e) { btn.innerText = "Error"; btn.disabled = false; alert("Save failed."); }
         }
 
-        checkKeys();
+        // On Load, wait for user to click splash
     </script>
 </body>
 </html>
