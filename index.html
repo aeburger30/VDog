@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>V-Dog the Vinyl Hunter</title>
+    <title>V-Dog v9.2</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <meta name="theme-color" content="#fbc02d">
@@ -98,7 +98,7 @@
     <div id="splash-screen">
         <img src="vdog.jpg" id="splash-img" alt="V-Dog">
         <h2 style="color:#fbc02d; margin-bottom:5px;">V-Dog</h2>
-        <p style="color:#666; margin-bottom:25px; font-size:0.9em;">Vinyl Hunter v9.1</p>
+        <p style="color:#666; margin-bottom:25px; font-size:0.9em;">Vinyl Hunter v9.2</p>
         <button class="enter-btn" onclick="enterApp()">Enter</button>
         <div class="reset-link" onclick="clearKeys()">Reset App Settings</div>
     </div>
@@ -299,6 +299,25 @@
             });
         }
         
+        // --- UX FUNCTIONS ---
+        function clearBin() {
+            if(confirm("Clear all scanned records?")) {
+                photoStack = []; renderGallery(); log("Bin cleared.");
+            }
+        }
+        
+        async function toggleCamera() {
+            const video = document.getElementById('camera-feed');
+            const btn = document.getElementById('cam-toggle');
+            if(isCamOn) {
+                const stream = video.srcObject;
+                if(stream) { const tracks = stream.getTracks(); tracks.forEach(track => track.stop()); video.srcObject = null; }
+                isCamOn = false; btn.innerText = "👁️ Off"; btn.classList.add("secondary");
+            } else {
+                await startCamera(); isCamOn = true; btn.innerText = "👁️ On"; btn.classList.remove("secondary");
+            }
+        }
+
         // --- HELPERS ---
         function checkDuplicate(artist, album) {
             if (!collectionCache.length) return null;
@@ -337,42 +356,8 @@
             const data = await res.json();
             return data.candidates[0].content.parts[0].text;
         }
-
         function log(m) { const l = document.getElementById('logs'); l.innerText += '\n> ' + m; l.scrollTop = l.scrollHeight; }
         
-        // --- UX FUNCTIONS (NEW) ---
-        function clearBin() {
-            if(confirm("Clear all scanned records?")) {
-                photoStack = [];
-                renderGallery();
-                log("Bin cleared.");
-            }
-        }
-        
-        async function toggleCamera() {
-            const video = document.getElementById('camera-feed');
-            const btn = document.getElementById('cam-toggle');
-            
-            if(isCamOn) {
-                // Turn OFF
-                const stream = video.srcObject;
-                if(stream) {
-                    const tracks = stream.getTracks();
-                    tracks.forEach(track => track.stop());
-                    video.srcObject = null;
-                }
-                isCamOn = false;
-                btn.innerText = "👁️ Off";
-                btn.classList.add("secondary");
-            } else {
-                // Turn ON
-                await startCamera();
-                isCamOn = true;
-                btn.innerText = "👁️ On";
-                btn.classList.remove("secondary");
-            }
-        }
-
         // --- KEYS & SETUP ---
         function saveKeys() {
             const g = document.getElementById('input-gemini').value.trim(); const d = document.getElementById('input-discogs').value.trim(); const s = document.getElementById('input-sheet').value.trim();
