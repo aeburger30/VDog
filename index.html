@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>V-Dog v9.5</title>
+    <title>V-Dog v9.7</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <meta name="theme-color" content="#fbc02d">
@@ -32,7 +32,7 @@
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
         .reset-link { margin-top: 40px; color: #666; font-size: 0.8em; text-decoration: underline; cursor: pointer; }
 
-        /* SETUP BOX */
+        /* SETUP */
         #settings-box { background: #1c1c1c; padding: 20px; border-radius: 8px; margin-top: 20px; border: 1px solid #333; }
         input, select, textarea { background: #111 !important; border-color: #333 !important; color: #fff !important; }
 
@@ -45,8 +45,8 @@
         video { width: 100%; height: 100%; object-fit: cover; }
         
         /* CONTROLS */
-        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 15px; }
-        .grid button { padding: 8px; font-size: 0.8em; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1.2fr 0.8fr 0.8fr; gap: 5px; margin-bottom: 15px; }
+        .grid button { padding: 8px 4px; font-size: 0.75em; white-space: nowrap; }
 
         /* GALLERY */
         .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -60,19 +60,14 @@
         
         /* BANNERS */
         .banner-stack { display: flex; flex-direction: column; }
-        
         .dup-banner { background: #d32f2f; color: white; font-weight: bold; font-size: 0.7em; text-align: center; padding: 4px; text-transform: uppercase; }
         .rare-banner { background: #7b1fa2; color: #fff; font-weight: bold; font-size: 0.7em; text-align: center; padding: 4px; text-transform: uppercase; animation: glow 2s infinite alternate; }
         .mismatch-banner { background: #ffb300; color: #000; font-weight: bold; font-size: 0.7em; text-align: center; padding: 4px; text-transform: uppercase; }
         .no-match-banner { background: #e65100; color: #fff; font-weight: bold; font-size: 0.7em; text-align: center; padding: 4px; text-transform: uppercase; border-bottom: 1px dashed #fff; }
-
         @keyframes glow { from { box-shadow: inset 0 0 5px #4a148c; } to { box-shadow: inset 0 0 15px #ab47bc; } }
         
-        /* BORDERS & STATES */
-        /* No Match gets highest visual priority (Dashed Border) */
+        /* BORDERS */
         .gallery-item.is-no-match { border: 2px dashed #e65100; }
-        
-        /* Then others */
         .gallery-item.is-rare { border: 2px solid #ab47bc; }
         .gallery-item.is-dup { border: 2px solid #d32f2f; }
         .gallery-item.is-mismatch { border: 2px solid #ffb300; }
@@ -84,7 +79,7 @@
         .btn-discogs { background: #fbc02d; color: #000; }
         .btn-listen { background: #c62828; color: #fff; }
         .btn-save { background: #2e7d32; color: #fff; }
-        .btn-save.warn-save { background: #e65100; color: #fff; } /* Warning Save Color */
+        .btn-save.warn-save { background: #e65100; color: #fff; } 
         .btn-vdog { background: #7b1fa2; color: #fff; } 
         .btn-edit { background: #424242; color: #fff; }
         .btn-save:disabled { background: #555; cursor: default; opacity: 0.7; }
@@ -104,7 +99,7 @@
     <div id="splash-screen">
         <img src="vdog.jpg" id="splash-img" alt="V-Dog">
         <h2 style="color:#fbc02d; margin-bottom:5px;">V-Dog</h2>
-        <p style="color:#666; margin-bottom:25px; font-size:0.9em;">Vinyl Hunter v9.5</p>
+        <p style="color:#666; margin-bottom:25px; font-size:0.9em;">Vinyl Hunter v9.7</p>
         <button class="enter-btn" onclick="enterApp()">Enter</button>
         <div class="reset-link" onclick="clearKeys()">Reset App Settings</div>
     </div>
@@ -124,12 +119,15 @@
             <div class="camera-container">
                 <video id="camera-feed" autoplay playsinline muted></video>
             </div>
+            
             <div class="grid">
                 <button onclick="takePhoto()">📸 Snap</button>
                 <button class="secondary" onclick="document.getElementById('file-input').click()">📂 Up</button>
                 <button class="contrast" id="process-btn" onclick="processBatch()">⚡ Hunt</button>
+                <button class="outline" onclick="switchCamera()" id="lens-btn">🔄 Lens</button>
                 <button class="outline" onclick="toggleCamera()" id="cam-toggle">👁️ On</button>
             </div>
+            
             <button class="secondary outline" onclick="clearBin()" style="width:100%; margin-bottom:15px;">🗑️ Clear Bin</button>
             <input type="file" id="file-input" multiple accept="image/*" onchange="handleFiles(this.files)" style="display:none;">
 
@@ -204,6 +202,9 @@
         let photoStack = [];
         let collectionCache = []; 
         let isCamOn = true;
+        let videoDevices = []; 
+        let currentDeviceIndex = 0; 
+        
         const CONDITION_GUIDE = { "Mint": "Perfect.", "NM": "Nearly perfect.", "VG+": "Cosmetic defects only.", "VG": "Surface noise evident.", "G+": "Significant noise.", "P": "Bad." };
 
         function enterApp() { document.getElementById('splash-screen').style.display = 'none'; document.getElementById('main-content').style.display = 'block'; checkKeys(); }
@@ -224,21 +225,30 @@
                 log(`Sniffing item ${i+1}...`);
                 try {
                     const base64 = item.data.split(',')[1];
+                    // 1. Gemini Identification (Strict Mode)
                     const gRes = await callGeminiIdentify(base64);
-                    log(`Found: ${gRes.artist}`);
+                    log(`AI Found: ${gRes.artist} / ${gRes.cat_num}`);
+                    
                     checkDupAndRare(gRes); 
                     item.result = gRes; renderGallery(); 
                     
+                    // 2. Discogs Search (Smart Fallback)
                     const dRes = await callDiscogs(gRes);
-                    item.result = { ...gRes, ...dRes };
                     
-                    // --- MISMATCH CHECK ---
-                    if(item.result.success && item.result.foundTitle) {
+                    // If Gemini gave "Unknown" but Discogs found real info, fill it in!
+                    if (dRes.success && (item.result.album === "Unknown" || item.result.album === "")) {
+                        item.result.album = dRes.foundTitle || item.result.album;
+                        log(`Discogs ID'd: ${item.result.album}`);
+                    }
+                    
+                    item.result = { ...item.result, ...dRes };
+                    
+                    // 3. Mismatch Check
+                    if(item.result.success && item.result.foundTitle && item.result.album !== "Unknown") {
                          const searchAlbum = item.result.album.toLowerCase().replace(/[^a-z0-9]/g, "");
                          const foundTitle = item.result.foundTitle.toLowerCase().replace(/[^a-z0-9]/g, "");
                          if(!foundTitle.includes(searchAlbum) && !searchAlbum.includes(foundTitle)) { item.result.isMismatch = true; }
                     }
-
                     item.status = 'done';
                 } catch (e) { log("Error: " + e.message); item.status = 'error'; }
                 renderGallery();
@@ -248,7 +258,21 @@
 
         async function callGeminiIdentify(base64) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${CONFIG.gemini}`;
-            const promptText = `Identify this vinyl. Return JSON: { "artist": "Name", "album": "Title", "year": "19XX", "cat_num": "Number", "is_rare": boolean, "rare_label": "String" }. Set 'is_rare' true ONLY for high value/cult items.`;
+            // NEW STRICT PROMPT
+            const promptText = `
+                Analyze this vinyl record image. Return JSON: { 
+                    "artist": "Name or Unknown", 
+                    "album": "Title or Unknown", 
+                    "year": "19XX", 
+                    "cat_num": "Number", 
+                    "is_rare": boolean, 
+                    "rare_label": "String" 
+                }
+                CRITICAL RULES:
+                1. If you see a number (Catalog #) but NO album art/title (e.g. a close-up of a label), return 'Unknown' for 'album'. DO NOT GUESS THE ALBUM.
+                2. Extract text precisely.
+                3. Set 'is_rare' true ONLY for high value items.
+            `;
             const payload = { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "image/jpeg", data: base64 } }]}]};
             const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
             const data = await res.json();
@@ -256,7 +280,19 @@
         }
 
         async function callDiscogs(data) {
-            let q = `${data.artist} ${data.album} ${data.cat_num || ''}`;
+            let q = "";
+            
+            // SMART QUERY LOGIC
+            if (data.album === "Unknown" || !data.album) {
+                // If AI didn't see the album, search by Catalog Number ONLY (Detectve Mode)
+                q = `${data.cat_num}`;
+                // If artist is known, add it
+                if (data.artist && data.artist !== "Unknown") q = `${data.artist} ${data.cat_num}`;
+            } else {
+                // Standard Search
+                q = `${data.artist} ${data.album}`;
+            }
+
             const manualUrl = `https://www.discogs.com/search/?q=${encodeURIComponent(q)}&type=release`;
             try {
                 const controller = new AbortController(); setTimeout(() => controller.abort(), 2500);
@@ -276,9 +312,8 @@
                 const isDup = r && r.isDuplicate;
                 const isRare = r && r.is_rare;
                 const isMismatch = r && r.isMismatch;
-                const isNoMatch = r && !r.success; // No Discogs results found
+                const isNoMatch = r && !r.success;
                 
-                // Border priority: No Match > Mismatch > Dup > Rare
                 let cardClass = ''; 
                 if (isNoMatch) cardClass = 'is-no-match';
                 else if (isMismatch) cardClass = 'is-mismatch';
@@ -286,13 +321,10 @@
                 else if (isRare) cardClass = 'is-rare';
 
                 let html = `<div class="gallery-item ${cardClass}"><div class="banner-stack">`;
-                
-                // Stack Banners
                 if (isNoMatch) html += `<div class="no-match-banner">🚫 No Match Found</div>`;
                 if (isMismatch) html += `<div class="mismatch-banner">⚠️ Check Match</div>`;
                 if (isDup) { let dupText = "⚠️ IN COLLECTION"; if (r.dupCondition) dupText += ` (${r.dupCondition})`; html += `<div class="dup-banner">${dupText}</div>`; }
                 if (isRare) html += `<div class="rare-banner">${r.rare_label || "💎 HIDDEN GEM"}</div>`;
-                
                 html += `</div><div class="img-wrap"><img src="${item.data}"></div><div class="card-content">`;
                 if(r) {
                     html += `<div class="info"><strong>${r.artist || 'Unknown'}</strong><em>${r.album || 'Unknown'}</em>
@@ -306,13 +338,9 @@
                     if(r.url) { html += `<a href="${r.url}" target="_blank" class="action-btn btn-discogs">${r.success ? '💿 Price' : '🔍 Discogs'}</a>`; }
                     const searchQ = encodeURIComponent(`${r.artist} ${r.album}`);
                     html += `<a href="https://www.youtube.com/results?search_query=${searchQ}" target="_blank" class="action-btn btn-listen">🎵 Listen</a>`;
-                    
-                    // SAVE BUTTON LOGIC (Warning if No Match)
-                    let saveBtnClass = "btn-save";
-                    let saveBtnText = "💾 Save";
+                    let saveBtnClass = "btn-save"; let saveBtnText = "💾 Save";
                     if(isNoMatch) { saveBtnClass += " warn-save"; saveBtnText = "⚠️ Force Save"; }
                     html += `</div><button id="btn-${item.id}" onclick="openSaveModal(${item.id})" class="action-btn ${saveBtnClass}">${saveBtnText}</button></div>`;
-                    
                 } else { html += `<span style="color:#666">...Waiting...</span>`; }
                 html += `</div></div>`;
                 el.innerHTML += html;
@@ -332,8 +360,6 @@
                 return dbAlbum.includes(searchAlbum) && dbArtist.includes(searchArtist);
             });
         }
-
-        // --- EDIT LOGIC ---
         function openEditModal(id) {
             const item = photoStack.find(p => String(p.id) === String(id)); if(!item) return;
             document.getElementById('edit-artist').value = item.result.artist || "";
@@ -342,7 +368,6 @@
             document.getElementById('edit-id').value = id;
             document.getElementById('edit-modal').showModal();
         }
-
         async function confirmEdit(e) {
             e.preventDefault();
             const id = document.getElementById('edit-id').value;
@@ -350,16 +375,13 @@
             item.result.artist = document.getElementById('edit-artist').value;
             item.result.album = document.getElementById('edit-album').value;
             item.result.cat_num = document.getElementById('edit-cat').value;
-            item.result.isDuplicate = false; 
-            item.result.isMismatch = false; 
+            item.result.isDuplicate = false; item.result.isMismatch = false; 
             checkDupAndRare(item.result);
             log("Re-checking Discogs...");
             const dRes = await callDiscogs(item.result);
-            item.result.url = dRes.url;
-            item.result.success = dRes.success;
+            item.result.url = dRes.url; item.result.success = dRes.success;
             document.getElementById('edit-modal').close(); renderGallery(); log("Updated!");
         }
-
         function askVDog(id) {
             const item = photoStack.find(p => String(p.id) === String(id)); if(!item) return;
             document.getElementById('vdog-text').innerText = "Sniffing...";
@@ -375,23 +397,40 @@
             const data = await res.json();
             return data.candidates[0].content.parts[0].text;
         }
-
-        function log(m) { const l = document.getElementById('logs'); l.innerText += '\n> ' + m; l.scrollTop = l.scrollHeight; }
-        function clearBin() { if(confirm("Clear all?")) { photoStack = []; renderGallery(); log("Bin cleared."); } }
+        async function startCamera() {
+            if (videoDevices.length === 0) {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    videoDevices = devices.filter(device => device.kind === 'videoinput');
+                } catch(e) { log("Could not enumerate cams."); }
+            }
+            const constraints = { video: { facingMode: 'environment' } }; 
+            if (videoDevices.length > 0) {
+                currentDeviceIndex = currentDeviceIndex % videoDevices.length;
+                const deviceId = videoDevices[currentDeviceIndex].deviceId;
+                constraints.video = { deviceId: { exact: deviceId } };
+            }
+            try {
+                const video = document.getElementById('camera-feed');
+                if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); }
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+            } catch (e) { log("Cam Error: " + e.message); }
+        }
+        async function switchCamera() { if(videoDevices.length < 2) { alert("Only 1 camera found."); return; } currentDeviceIndex++; await startCamera(); log(`Switched to Cam ${currentDeviceIndex + 1}`); }
         async function toggleCamera() {
             const video = document.getElementById('camera-feed'); const btn = document.getElementById('cam-toggle');
             if(isCamOn) { const stream = video.srcObject; if(stream) { const tracks = stream.getTracks(); tracks.forEach(track => track.stop()); video.srcObject = null; } isCamOn = false; btn.innerText = "👁️ Off"; btn.classList.add("secondary"); } 
             else { await startCamera(); isCamOn = true; btn.innerText = "👁️ On"; btn.classList.remove("secondary"); }
         }
-        function saveKeys() {
-            const g = document.getElementById('input-gemini').value.trim(); const d = document.getElementById('input-discogs').value.trim(); const s = document.getElementById('input-sheet').value.trim();
-            if(!g || !d || !s) return alert("Keys required.");
-            localStorage.setItem('v_gemini', g); localStorage.setItem('v_discogs', d); localStorage.setItem('v_sheet', s); location.reload(); 
-        }
+        // INCREASED RESOLUTION TO 1200px
+        function takePhoto() { const v = document.getElementById('camera-feed'); if (!v.srcObject) return alert("Cam OFF."); const c = document.createElement('canvas'); const s = 1200 / v.videoWidth; c.width = 1200; c.height = v.videoHeight * s; c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.8)); }
+        function handleFiles(f) { Array.from(f).forEach(file => { const r = new FileReader(); r.onload = (e) => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); const s = 1200 / i.width; c.width = 1200; c.height = i.height * s; c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.8)); }; i.src = e.target.result; }; r.readAsDataURL(file); }); }
+        
+        function log(m) { const l = document.getElementById('logs'); l.innerText += '\n> ' + m; l.scrollTop = l.scrollHeight; }
+        function clearBin() { if(confirm("Clear all?")) { photoStack = []; renderGallery(); log("Bin cleared."); } }
+        function saveKeys() { const g = document.getElementById('input-gemini').value.trim(); const d = document.getElementById('input-discogs').value.trim(); const s = document.getElementById('input-sheet').value.trim(); if(!g || !d || !s) return alert("Keys required."); localStorage.setItem('v_gemini', g); localStorage.setItem('v_discogs', d); localStorage.setItem('v_sheet', s); location.reload(); }
         function clearKeys() { if(confirm("Reset app?")) { localStorage.clear(); location.reload(); } }
-        async function startCamera() { try { const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); document.getElementById('camera-feed').srcObject = s; } catch (e) { log("Camera unavailable."); } }
-        function takePhoto() { const v = document.getElementById('camera-feed'); if (!v.srcObject) return alert("Cam OFF."); const c = document.createElement('canvas'); const s = 800 / v.videoWidth; c.width = 800; c.height = v.videoHeight * s; c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.7)); }
-        function handleFiles(f) { Array.from(f).forEach(file => { const r = new FileReader(); r.onload = (e) => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); const s = 800 / i.width; c.width = 800; c.height = i.height * s; c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); addPhoto(c.toDataURL('image/jpeg', 0.7)); }; i.src = e.target.result; }; r.readAsDataURL(file); }); }
         function addPhoto(d) { photoStack.push({ id: Date.now() + Math.random(), data: d, status: 'pending', result: null }); renderGallery(); }
         function openSaveModal(id) { if(!CONFIG.sheet) return alert("No DB!"); document.getElementById('modal-condition').value=""; document.getElementById('condition-help').style.display="none"; document.getElementById('modal-price').value=""; document.getElementById('modal-notes').value=""; document.getElementById('modal-id').value=id; document.getElementById('save-modal').showModal(); }
         function showConditionHelp() { const v=document.getElementById('modal-condition').value; const h=document.getElementById('condition-help'); if(v&&CONDITION_GUIDE[v]){h.innerText=CONDITION_GUIDE[v];h.style.display='block';}else{h.style.display='none';} }
