@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vdog-v1';
+const CACHE_NAME = 'vdog-v2';
 const ASSETS = [
   './',
   './index.html',
